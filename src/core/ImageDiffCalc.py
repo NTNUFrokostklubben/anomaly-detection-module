@@ -8,7 +8,6 @@ from osgeo.gdal import Dataset, Band
 import numpy as np
 from os import listdir
 from os.path import isfile, join
-import cv2
 np.set_printoptions(suppress=True, precision=3) #Removes awful numpy number formatting
 
 
@@ -25,9 +24,6 @@ def main():
     dataset: List[Dataset] = []
     for idx in range(len(onlyfiles)):
         dataset.insert(idx, gdal.Open(mypath +"\\" +onlyfiles[idx]))
-
-        cv2.Canny()
-
     vals = np.zeros(len(dataset))
     print(len(dataset))
     vals[0] = color_average(dataset[0])
