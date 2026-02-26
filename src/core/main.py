@@ -1,8 +1,8 @@
 
-import gdalTest
+import ImageDiffCalc
 
 def main():
-  gdalTest.main()
+  ImageDiffCalc.main()
 
 if __name__ == "__main__":
   main()
