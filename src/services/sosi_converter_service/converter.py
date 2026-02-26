@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 from .gdal_environment import setup_gdal_environment, get_bundle_root
 
+# Convert SOSI to GPKG using GDAL's ogr2ogr
 def convert_sosi_to_gpkg(input_file: str, output_file: str):
     setup_gdal_environment()
     bundle_root = get_bundle_root()
