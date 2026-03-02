@@ -1,5 +1,6 @@
 
 import ImageDiffCalc
+
 import MirageFinder
 
 def main():
@@ -7,4 +8,5 @@ def main():
  MirageFinder.main()
 
 if __name__ == "__main__":
-  main()
+    print("start")
+    main()
