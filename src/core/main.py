@@ -1,11 +1,11 @@
 
 import ImageDiffCalc
 
-import MirageFinder
+import WaterDetector
 
 def main():
  #ImageDiffCalc.main()
- MirageFinder.main()
+ WaterDetector.main()
 
 if __name__ == "__main__":
     print("start")
