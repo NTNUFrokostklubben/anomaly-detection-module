@@ -1,52 +1,10 @@
-# overlap_utils.py
-import geopandas as gpd
-from shapely.affinity import affine_transform
-import cv2
 from pathlib import Path
+import geopandas as gpd
+import numpy as np
+from shapely.geometry import Polygon
+from skimage.transform import AffineTransform
 
-# ------------------------------------------------------------
-# Image loader
-# ------------------------------------------------------------
-def load_image_safe(path):
-    path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(f"Image not found: {path}")
 
-    img = cv2.imread(str(path))
-    if img is None:
-        raise ValueError(f"OpenCV could not read image: {path}")
-
-    return img
-
-# ------------------------------------------------------------
-# Affine transform
-# ------------------------------------------------------------
-def compute_affine_from_polygon(poly, width, height):
-    coords = list(poly.exterior.coords)[:4]
-    x0, y0 = coords[0]
-    x1, y1 = coords[1]
-    x3, y3 = coords[3]
-
-    a = (x1 - x0) / width
-    b = (x3 - x0) / height
-    d = (y1 - y0) / width
-    e = (y3 - y0) / height
-
-    return [a, b, d, e, x0, y0]
-
-def invert_affine(a, b, d, e, xoff, yoff):
-    det = a * e - b * d
-    inv_a = e / det
-    inv_b = -b / det
-    inv_d = -d / det
-    inv_e = a / det
-    inv_xoff = -(inv_a * xoff + inv_b * yoff)
-    inv_yoff = -(inv_d * xoff + inv_e * yoff)
-    return [inv_a, inv_b, inv_d, inv_e, inv_xoff, inv_yoff]
-
-# ------------------------------------------------------------
-# Polygon to bounding box
-# ------------------------------------------------------------
 def polygon_to_bbox(polygon):
     minx, miny, maxx, maxy = polygon.bounds
     return int(minx), int(miny), int(maxx), int(maxy)
@@ -58,55 +16,127 @@ def safe_crop(img, x0, y0, x1, y1):
     y1 = min(img.shape[0], y1)
     return img[y0:y1, x0:x1]
 
-# ------------------------------------------------------------
-# Compute overlap in pixel coordinates
-# ------------------------------------------------------------
-def get_overlap_pixel_images(gpkg_path, img1_num, strip1, img2_num, strip2, base_path="."):
+
+def build_transform_from_polygon(poly, width, height):
+    """
+    Build affine transform from world coordinates -> pixel coordinates
+    Assumes poly.exterior.coords order:
+    [bottom-right, top-right, top-left, bottom-left]
+    """
+
+    world_coords = np.array(poly.exterior.coords[:-1])  # remove duplicate last point
+    if len(world_coords) != 4:
+        raise ValueError("Polygon must have exactly 4 corners")
+
+    # Reorder to match pixel coordinates
+    # Pixel coordinates are:
+    # [top-left, top-right, bottom-right, bottom-left]
+    world_coords_ordered = np.array([
+        world_coords[2],  # top-left
+        world_coords[1],  # top-right
+        world_coords[0],  # bottom-right
+        world_coords[3]   # bottom-left
+    ])
+    
+
+    # Pixel coordinates
+    pixel_coords = np.array([
+        [0, 0],             # top-left
+        [width, 0],         # top-right
+        [width, height],    # bottom-right
+        [0, height]         # bottom-left
+    ])
+
+    tform = AffineTransform()
+    success = tform.estimate(world_coords_ordered, pixel_coords)
+
+    if not success:
+        raise RuntimeError("Affine transform estimation failed")
+
+    return tform
+
+
+def get_bounds(px_coords, width, height):
+    """
+    Get safe integer crop bounds
+    """
+    min_x = int(np.floor(px_coords[:, 0].min()))
+    max_x = int(np.ceil(px_coords[:, 0].max()))
+    min_y = int(np.floor(px_coords[:, 1].min()))
+    max_y = int(np.ceil(px_coords[:, 1].max()))
+
+    # Clamp to image size
+    min_x = max(0, min_x)
+    min_y = max(0, min_y)
+    max_x = min(width, max_x)
+    max_y = min(height, max_y)
+
+    return min_x, max_x, min_y, max_y
+
+
+def get_overlap_pixel_images(gpkg_path, img1_num, strip1, img2_num, strip2):
     gdf = gpd.read_file(gpkg_path, layer="polygons", encoding="ISO-8859-1")
+
     gdf["bildenummer"] = gdf["bildenummer"].astype(int)
     gdf["stripenummer"] = gdf["stripenummer"].astype(int)
 
-    img1_row = gdf[(gdf["bildenummer"] == img1_num) & (gdf["stripenummer"] == strip1)].iloc[0]
-    img2_row = gdf[(gdf["bildenummer"] == img2_num) & (gdf["stripenummer"] == strip2)].iloc[0]
+    # Select images
+    img1_row = gdf[
+        (gdf["bildenummer"] == img1_num) &
+        (gdf["stripenummer"] == strip1)
+    ].iloc[0]
 
-    poly1, poly2 = img1_row.geometry, img2_row.geometry
+    img2_row = gdf[
+        (gdf["bildenummer"] == img2_num) &
+        (gdf["stripenummer"] == strip2)
+    ].iloc[0]
+
+    poly1 = img1_row.geometry
+    poly2 = img2_row.geometry
+
     print("Image 1 polygon:", poly1)
     print("Image 2 polygon:", poly2)
+
+    # Compute world overlap
     overlap_world = poly1.intersection(poly2)
 
+    print("Overlap polygon:", overlap_world)
+
     if overlap_world.is_empty:
-        print("No overlap")
+        print("No overlap found.")
         return None, None
 
-    # Build transforms
-    width1, height1 = img1_row["ccdBrikkeside"], img1_row["ccdBrikkelengde"]
-    width2, height2 = img2_row["ccdBrikkeside"], img2_row["ccdBrikkelengde"]
+    # Image pixel dimensions
+    width1 = int(img1_row["ccdBrikkeside"])
+    height1 = int(img1_row["ccdBrikkelengde"])
 
-    aff1 = compute_affine_from_polygon(poly1, width1, height1)
-    aff2 = compute_affine_from_polygon(poly2, width2, height2)
-    inv_aff1 = invert_affine(*aff1)
-    inv_aff2 = invert_affine(*aff2)
+    width2 = int(img2_row["ccdBrikkeside"])
+    height2 = int(img2_row["ccdBrikkelengde"])
 
-    # Map overlap to pixel coordinates
-    overlap_px1 = affine_transform(overlap_world, inv_aff1)
-    overlap_px2 = affine_transform(overlap_world, inv_aff2)
+    print("Image1 size:", width1, height1)
+    print("Image2 size:", width2, height2)
 
-    # Load images
-    img1 = load_image_safe(Path(base_path) / img1_row["bildefilRGB"])
-    img2 = load_image_safe(Path(base_path) / img2_row["bildefilRGB"])
+    # Build affine transforms
+    tform1 = build_transform_from_polygon(poly1, width1, height1)
+    tform2 = build_transform_from_polygon(poly2, width2, height2)
 
-    # Crop overlapping areas
-    x0, y0, x1, y1 = polygon_to_bbox(overlap_px1)
-    overlap_img1 = safe_crop(img1, x0, y0, x1, y1)
+    # Convert overlap polygon to pixel space
+    overlap_coords = np.array(overlap_world.exterior.coords)
 
-    x0, y0, x1, y1 = polygon_to_bbox(overlap_px2)
-    overlap_img2 = safe_crop(img2, x0, y0, x1, y1)
+    # After transforming the overlap polygon
+    overlap_px1 = tform1(overlap_coords)
+    overlap_px2 = tform2(overlap_coords)
 
-    # print("Poly1 area:", poly1.area)
-    # print("Poly2 area:", poly2.area)
-    # print("Overlap area:", overlap_world.area)
+    # Flip y-axis for NumPy/OpenCV image coordinates
+    overlap_px1[:, 1] = height1 - overlap_px1[:, 1]
+    overlap_px2[:, 1] = height2 - overlap_px2[:, 1]
 
-    # print("Overlap % of image 1:", overlap_world.area / poly1.area)
-    # print("Overlap % of image 2:", overlap_world.area / poly2.area)
-    
-    return overlap_img1, overlap_img2, overlap_px1, overlap_px2, img1, img2
+    # Compute crop bounds
+    bounds1 = get_bounds(overlap_px1, width1, height1)
+    bounds2 = get_bounds(overlap_px2, width2, height2)
+
+    print("Image1 pixel bounds:", bounds1)
+    print("Image2 pixel bounds:", bounds2)
+
+    return bounds1, bounds2
+
