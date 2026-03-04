@@ -17,8 +17,8 @@ def main():
     :return: null
     """
     gdal.DontUseExceptions()
-    #mypath = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images"
-    mypath = r"D:\HX-14365_NordmøreGSD10\RGB"
+    mypath = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images"
+    #mypath = r"D:\HX-14365_NordmøreGSD10\RGB"
     onlyfiles = [f for f in listdir(mypath) if isfile(join(mypath, f))]
     dataset: List[Dataset] = []
     for idx in range(len(onlyfiles)):
