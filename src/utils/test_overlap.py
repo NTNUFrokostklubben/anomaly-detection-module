@@ -1,4 +1,4 @@
-from find_overlap_copy import get_overlap_pixel_images
+from find_overlap import get_overlap_pixel_images
 from pathlib import Path
 import cv2
 import numpy as np

@@ -4,24 +4,47 @@ import numpy as np
 from shapely.geometry import Polygon
 from skimage.transform import AffineTransform
 
+def find_image_from_gpkg(gdf, img_num, strip_num):
+    """
+    Find the polygon for a given image number and strip number from the GeoPackage
+    Returns the polygon and the image dimensions (width, height) as integers
+    
+    Args:
+        gdf (_type_): polygon geometry for the image footprint
+        img_num (int): witdh of the image in pixels
+        strip_num (int): Strip number for the image
 
-def polygon_to_bbox(polygon):
-    minx, miny, maxx, maxy = polygon.bounds
-    return int(minx), int(miny), int(maxx), int(maxy)
+    Returns:
+        _type_: bounds for the overlapping region in pixel coordinates for both images, as tuples (min_x, max_x, min_y, max_y)
+    """
 
-def safe_crop(img, x0, y0, x1, y1):
-    x0 = max(0, x0)
-    y0 = max(0, y0)
-    x1 = min(img.shape[1], x1)
-    y1 = min(img.shape[0], y1)
-    return img[y0:y1, x0:x1]
+    gdf["bildenummer"] = gdf["bildenummer"].astype(int)
+    gdf["stripenummer"] = gdf["stripenummer"].astype(int)
 
+    row = gdf[
+        (gdf["bildenummer"] == img_num) &
+        (gdf["stripenummer"] == strip_num)
+    ].iloc[0]    
+
+    if row.empty:
+        raise ValueError(f"Image with number {img_num} and strip {strip_num} not found")
+       
+    
+    return row.geometry, int(row["ccdBrikkeside"]), int(row["ccdBrikkelengde"])
 
 def build_transform_from_polygon(poly, width, height):
     """
     Build affine transform from world coordinates -> pixel coordinates
     Assumes poly.exterior.coords order:
     [bottom-right, top-right, top-left, bottom-left]
+    
+    Args:
+        poly (Polygon): polygon geometry for the image footprint
+        width (int): witdh of the image in pixels
+        height (int): height of the image in pixels
+
+    Returns:
+        AffineTransform: AffineTransform object that maps world coordinates to pixel coordinates
     """
 
     world_coords = np.array(poly.exterior.coords[:-1])  # remove duplicate last point
@@ -75,28 +98,23 @@ def get_bounds(px_coords, width, height):
 
 
 def get_overlap_pixel_images(gpkg_path, img1_num, strip1, img2_num, strip2):
+    """ Find the pixel bounds of the overlapping region between two images defined in a GeoPackage
+
+    Args:
+        gpkg_path (str): path to the GeoPackage file
+        img1_num (int): image number for the first image
+        strip1 (int): strip number for the first image
+        img2_num (int): image number for the second image
+        strip2 (int): strip number for the second image
+
+    Returns:
+        tuple[int, int, int, int]: bounds for the overlapping region in pixel coordinates for both images, as tuples (min_x, max_x, min_y, max_y)
+    """
     gdf = gpd.read_file(gpkg_path, layer="polygons", encoding="ISO-8859-1")
 
-    gdf["bildenummer"] = gdf["bildenummer"].astype(int)
-    gdf["stripenummer"] = gdf["stripenummer"].astype(int)
-
-    # Select images
-    img1_row = gdf[
-        (gdf["bildenummer"] == img1_num) &
-        (gdf["stripenummer"] == strip1)
-    ].iloc[0]
-
-    img2_row = gdf[
-        (gdf["bildenummer"] == img2_num) &
-        (gdf["stripenummer"] == strip2)
-    ].iloc[0]
-
-    poly1 = img1_row.geometry
-    poly2 = img2_row.geometry
-
-    print("Image 1 polygon:", poly1)
-    print("Image 2 polygon:", poly2)
-
+    poly1, width1, height1 = find_image_from_gpkg(gdf, img1_num, strip1)
+    poly2, width2, height2 = find_image_from_gpkg(gdf, img2_num, strip2)
+    
     # Compute world overlap
     overlap_world = poly1.intersection(poly2)
 
@@ -105,13 +123,6 @@ def get_overlap_pixel_images(gpkg_path, img1_num, strip1, img2_num, strip2):
     if overlap_world.is_empty:
         print("No overlap found.")
         return None, None
-
-    # Image pixel dimensions
-    width1 = int(img1_row["ccdBrikkeside"])
-    height1 = int(img1_row["ccdBrikkelengde"])
-
-    width2 = int(img2_row["ccdBrikkeside"])
-    height2 = int(img2_row["ccdBrikkelengde"])
 
     print("Image1 size:", width1, height1)
     print("Image2 size:", width2, height2)
