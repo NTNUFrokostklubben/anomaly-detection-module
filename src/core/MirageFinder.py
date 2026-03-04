@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 
 import numpy as np
@@ -125,24 +126,101 @@ def smoothing(mask: np.ndarray, increment, sensitivity):
 
     return mask
 
+def jumping_block_water_detect(data: np.ndarray, increment):
+    shape = data.shape
+    yShape = shape[1]
+    xShape = shape[2]
+
+    xJump = increment
+    yJump = increment
+    r = data[0].astype(np.float32)
+    g = data[1].astype(np.float32)
+    b = data[2].astype(np.float32)
+    mask = np.zeros_like(data[0], dtype=bool)
+    previous = False
+    blockStart: np.ndarray = data[0:3, 0: xJump, 0:yJump]
+    rMean = blockStart[0].mean()
+    gMean = blockStart[1].mean()
+    bMean = blockStart[2].mean()
+    if bMean > gMean and bMean > rMean:
+        previous = True
+        mask[ 0:xJump, 0:yJump].fill(True)
+    idx = xJump
+    idy = 0
+    cont = True
+    coast = False
+    rollover = False
+    lastLine = False
+
+    while cont:
+        #if idx >= 0 and idy >13400:
+           # breakpoint()
+            #print(mask[7020:7050, 0:30].all())
+        if idy + increment >= yShape:
+            yJump = yShape-idy
+            lastLine = True
+        if rollover:
+            idx = 0
+            if lastLine:
+                break
+            xJump = increment
+            idy += yJump
+            rollover = False
+
+        if idx+increment >= xShape:
+            xJump = xShape-idx
+            rollover = True
+
+        blockSlice: np.ndarray = data[0:3, idy:idy + yJump, idx:idx + xJump]
+        redMean = blockSlice[0].mean()
+        greenMean = blockSlice[1].mean()
+        blueMean = blockSlice[2].mean()
+        if blueMean > greenMean and blueMean > redMean:
+            if previous:
+                mask[idy:idy+yJump, idx:idx+xJump] = True
+                idx += xJump
+            else: #Add angling to the pixel line instead of a straight line, might improve coastline look
+                for i in range(0, xJump):
+                    rLine = blockSlice[0][0:yJump , i].mean()
+                    gLine = blockSlice[1][0:yJump , i].mean()
+                    bLine = blockSlice[2][0:yJump , i].mean()
+                    if bLine > rLine and bLine > gLine:
+                        idx += i
+                        previous = True
+                        break
+        else:
+            idx += xJump
+
+    return mask
+
+
 
 
 # --- Main ---
 def main():
     gdal.DontUseExceptions()
     data, ds = load_geotiff(r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_042_14863.tif")
-    water_mask = create_water_mask_2(data)
-    smooth_mask = smoothing(water_mask, 200, 0.25)
+    #water_mask = create_water_mask_2(data)
+    #smooth_mask = smoothing(water_mask, 200, 0.25)
+    before = datetime.now()
+    mask = jumping_block_water_detect(data, 30)
+    after = datetime.now()
+    delta = after - before
+    print(delta)
     dataset: gdal.Dataset = ds
-
+    #plt.imshow(mask, cmap='gray_r', interpolation='nearest')
+    #plt.show()
+"""
     bandRed = dataset.GetRasterBand(1).ReadAsArray()
     bandGreen = dataset.GetRasterBand(2).ReadAsArray()
     bandBlue = dataset.GetRasterBand(3).ReadAsArray()
-    r = np.where(smooth_mask, bandRed, 255)
-    g = np.where(smooth_mask, bandGreen, 255)
-    b = np.where(smooth_mask, bandBlue, 255)
+    r = np.where(mask, bandRed, 255)
+    g = np.where(mask, bandGreen, 255)
+    b = np.where(mask, bandBlue, 255)
     img = np.dstack((r, g, b))
-
     #img = np.transpose(data, (1, 2, 0))
     plt.imshow(img)
     plt.show()
+"""
+
+
