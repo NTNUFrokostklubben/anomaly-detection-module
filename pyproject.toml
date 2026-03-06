@@ -15,6 +15,11 @@ dependencies = [
     "chardet>=5.0"
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
