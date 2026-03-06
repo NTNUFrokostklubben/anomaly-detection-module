@@ -1,2 +1,32 @@
+
 .idea
 __pycache__
+
+# IDE-specific files
+.idea/
+.vscode/
+
+# Byte-compiled / optimized / "build" files
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+*.egg-info/
+.eggs/
+
+# Virtual environment
+venv/
+env/
+.venv/
+.env/
+
+# Build artifacts
+dist/
+build/
+
+# Secrets and credentials (example names)
+secrets.toml
+.env.local
+
+
+lib/
