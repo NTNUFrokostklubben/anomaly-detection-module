@@ -68,7 +68,7 @@ def convert_sosi_to_gpkg(input_file: str, output_file: str):
 
         subprocess.run(command, check=True)
         
-def convert_sosi_to_GeoJson(input_file: str, output_file: str):
+def convert_sosi_to_geojson(input_file: str, output_file: str):
     """Convert a SOSI file to GeoJSON format using GDAL's ogr2ogr tool, with encoding normalization.
 
     Args:
