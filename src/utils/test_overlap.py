@@ -3,6 +3,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+#TODO Refactor this into a proper unit test with pytest, and add more test cases for different images and edge cases (no overlap, full overlap, etc.)
+
 gpkg_path = Path(__file__).parent / "file_test.gpkg"
 base_path = Path(__file__).parent
 

@@ -118,14 +118,9 @@ def get_overlap_pixel_images(gpkg_path, img1_num, strip1, img2_num, strip2):
     # Compute world overlap
     overlap_world = poly1.intersection(poly2)
 
-    print("Overlap polygon:", overlap_world)
-
     if overlap_world.is_empty:
         print("No overlap found.")
         return None, None
-
-    print("Image1 size:", width1, height1)
-    print("Image2 size:", width2, height2)
 
     # Build affine transforms
     tform1 = build_transform_from_polygon(poly1, width1, height1)
@@ -145,9 +140,6 @@ def get_overlap_pixel_images(gpkg_path, img1_num, strip1, img2_num, strip2):
     # Compute crop bounds
     bounds1 = get_bounds(overlap_px1, width1, height1)
     bounds2 = get_bounds(overlap_px2, width2, height2)
-
-    print("Image1 pixel bounds:", bounds1)
-    print("Image2 pixel bounds:", bounds2)
 
     return bounds1, bounds2
 
