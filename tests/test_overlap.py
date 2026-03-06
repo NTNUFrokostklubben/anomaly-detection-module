@@ -1,91 +1,82 @@
-from utils.find_overlap import get_overlap_pixel_images
+import pytest
 from pathlib import Path
-import cv2
-import numpy as np
 
-#TODO Refactor this into a proper unit test with pytest, and add more test cases for different images and edge cases (no overlap, full overlap, etc.)
+from utils.find_overlap import get_overlap_pixel_images
 
-gpkg_path = Path(__file__).parent /"testdata" / "test_file_short.gpkg"
-print("GPKG path:", gpkg_path)
-base_path = Path(__file__).parent
 
-img1_num, strip1 = 5, 1
-img2_num, strip2 = 6, 1
+BASE_PATH = Path(__file__).parent / "testdata"
+GPKG_PATH = BASE_PATH / "test_file_short.gpkg"
 
-SCALE = 0.15
 
-# ------------------------------
-# Step 1: Get pixel bounds of overlap
-# ------------------------------
-bounds1, bounds2 = get_overlap_pixel_images(
-    gpkg_path,
-    img1_num,
-    strip1,
-    img2_num,
-    strip2
-)
+def test_full_overlap():
+    """
+    Two images that are identical spatially -> 100% overlap
+    """
 
-if bounds1 is None:
-    print("No overlap")
-    exit()
+    img1_num, strip1 = 1, 1
+    img2_num, strip2 = 1, 1  # same image
 
-# ------------------------------
-# Step 2: Load full images
-# (replace with your actual paths)
-# ------------------------------
-img1_path = base_path /"testdata" / "HX-14365_001_005_00005.tif"
-img2_path = base_path /"testdata" / "HX-14365_001_006_00006.tif"
+    bounds1, bounds2 = get_overlap_pixel_images(
+        GPKG_PATH,
+        img1_num,
+        strip1,
+        img2_num,
+        strip2,
+    )
 
-img1 = cv2.imread(str(img1_path))
-img2 = cv2.imread(str(img2_path))
+    assert bounds1 is not None
+    assert bounds2 is not None
 
-if img1 is None or img2 is None:
-    print("Could not load images")
-    exit()
+    # Full overlap → bounds should be identical
+    assert bounds1 == bounds2
 
-print("Full image 1 shape:", img1.shape)
-print("Full image 2 shape:", img2.shape)
 
-# ------------------------------
-# Step 3: Crop overlap
-# ------------------------------
-x1_min, x1_max, y1_min, y1_max = bounds1
-x2_min, x2_max, y2_min, y2_max = bounds2
+def test_partial_overlap():
+    """
+    Two images that overlap partially
+    """
 
-overlap_img1 = img1[y1_min:y1_max, x1_min:x1_max]
-overlap_img2 = img2[y2_min:y2_max, x2_min:x2_max]
+    img1_num, strip1 = 5, 1
+    img2_num, strip2 = 6, 1
 
-# ------------------------------
-# Step 4: Downscale full images for display
-# ------------------------------
-def resize(img, scale):
-    h, w = img.shape[:2]
-    return cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+    bounds1, bounds2 = get_overlap_pixel_images(
+        GPKG_PATH,
+        img1_num,
+        strip1,
+        img2_num,
+        strip2,
+    )
 
-img1_small = resize(img1, SCALE)
-img2_small = resize(img2, SCALE)
+    assert bounds1 is not None
+    assert bounds2 is not None
 
-# Also downscale overlap images
-overlap_img1_small = resize(overlap_img1, SCALE)
-overlap_img2_small = resize(overlap_img2, SCALE)
+    x1_min, x1_max, y1_min, y1_max = bounds1
+    x2_min, x2_max, y2_min, y2_max = bounds2
 
-# ------------------------------
-# Step 5: Draw overlap bounds on full images (optional)
-# ------------------------------
-def draw_rect(img_small, bounds, scale):
-    x_min, x_max, y_min, y_max = bounds
-    top_left = (int(x_min * scale), int(y_min * scale))
-    bottom_right = (int(x_max * scale), int(y_max * scale))
-    cv2.rectangle(img_small, top_left, bottom_right, (0, 0, 255), 2)
-    return img_small
+    # Compute overlap area in pixel space
+    overlap_width = max(0, min(x1_max, x2_max) - max(x1_min, x2_min))
+    overlap_height = max(0, min(y1_max, y2_max) - max(y1_min, y2_min))
 
-img1_debug = draw_rect(img1_small.copy(), bounds1, SCALE)
-img2_debug = draw_rect(img2_small.copy(), bounds2, SCALE)
+    assert overlap_width > 0
+    assert overlap_height > 0
 
-# ------------------------------
-# Step 6: Show images
-# ------------------------------
-cv2.imshow("Image 1 with Overlap", img1_debug)
-cv2.imshow("Image 2 with Overlap", img2_debug)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+
+def test_no_overlap():
+    """
+    Two images that are far apart spatially
+    """
+
+    img1_num, strip1 = 1, 1
+    img2_num, strip2 = 10, 1  # assume far away / non-existent overlap
+
+    bounds1, bounds2 = get_overlap_pixel_images(
+        GPKG_PATH,
+        img1_num,
+        strip1,
+        img2_num,
+        strip2,
+    )
+
+    # No overlap → function should return None
+    assert bounds1 is None
+    assert bounds2 is None

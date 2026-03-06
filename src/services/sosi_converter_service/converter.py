@@ -7,7 +7,12 @@ from pathlib import Path
 from .gdal_environment import setup_gdal_environment, get_bundle_root
 
 def normalize_sosi_encoding(input_path: Path, output_path: Path):
-    """Detect encoding, remove BOM, and normalize to ISO-8859-1."""
+    """Detect encoding, remove BOM, and normalize to ISO-8859-1.
+
+    args:
+        input_path (Path): Path to the input SOSI file
+        output_path (Path): Path to the output normalized file
+    """
 
     # Read raw bytes
     raw = input_path.read_bytes()
@@ -37,8 +42,13 @@ def normalize_sosi_encoding(input_path: Path, output_path: Path):
     with open(output_path, "w", encoding="iso-8859-1", errors="ignore") as f:
         f.write(text)
 
-# Convert SOSI to GPKG using GDAL's ogr2ogr
 def convert_sosi_to_gpkg(input_file: str, output_file: str):
+    """Convert a SOSI file to GeoPackage format using GDAL's ogr2ogr tool, with encoding normalization.
+
+    Args:
+        input_file (str): Path to the input SOSI file
+        output_file (str): Path to the output GeoPackage file
+    """
     setup_gdal_environment()
     bundle_root = get_bundle_root()
 
@@ -58,9 +68,13 @@ def convert_sosi_to_gpkg(input_file: str, output_file: str):
 
         subprocess.run(command, check=True)
         
-
-# Convert SOSI to GeoJSON using GDAL's ogr2ogr
 def convert_sosi_to_GeoJson(input_file: str, output_file: str):
+    """Convert a SOSI file to GeoJSON format using GDAL's ogr2ogr tool, with encoding normalization.
+
+    Args:
+        input_file (str): _path to the input SOSI file
+        output_file (str): _path to the output GeoJSON file
+    """
     setup_gdal_environment()
     bundle_root = get_bundle_root()
 

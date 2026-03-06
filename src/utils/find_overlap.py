@@ -70,11 +70,10 @@ def build_transform_from_polygon(poly, width, height):
         [0, height]         # bottom-left
     ])
 
-    tform = AffineTransform()
-    success = tform.estimate(world_coords_ordered, pixel_coords)
-
-    if not success:
-        raise RuntimeError("Affine transform estimation failed")
+    tform = AffineTransform.from_estimate(
+        world_coords_ordered,
+        pixel_coords
+    )
 
     return tform
 
