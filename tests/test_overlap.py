@@ -1,11 +1,12 @@
-from find_overlap import get_overlap_pixel_images
+from utils.find_overlap import get_overlap_pixel_images
 from pathlib import Path
 import cv2
 import numpy as np
 
 #TODO Refactor this into a proper unit test with pytest, and add more test cases for different images and edge cases (no overlap, full overlap, etc.)
 
-gpkg_path = Path(__file__).parent / "file_test.gpkg"
+gpkg_path = Path(__file__).parent /"testdata" / "test_file_short.gpkg"
+print("GPKG path:", gpkg_path)
 base_path = Path(__file__).parent
 
 img1_num, strip1 = 5, 1
@@ -32,8 +33,8 @@ if bounds1 is None:
 # Step 2: Load full images
 # (replace with your actual paths)
 # ------------------------------
-img1_path = base_path / "HX-14365_001_005_00005.tif"
-img2_path = base_path / "HX-14365_001_006_00006.tif"
+img1_path = base_path /"testdata" / "HX-14365_001_005_00005.tif"
+img2_path = base_path /"testdata" / "HX-14365_001_006_00006.tif"
 
 img1 = cv2.imread(str(img1_path))
 img2 = cv2.imread(str(img2_path))

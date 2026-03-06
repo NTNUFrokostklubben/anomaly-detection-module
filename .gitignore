@@ -26,3 +26,9 @@ secrets.toml
 
 
 lib/
+
+test_data/
+*.tif
+*.tiff
+*.gpkg
+*.sos
