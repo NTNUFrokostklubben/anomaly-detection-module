@@ -1,8 +1,12 @@
 
 import ImageDiffCalc
 
+import WaterDetector
+
 def main():
-  ImageDiffCalc.main()
+ #ImageDiffCalc.main()
+ WaterDetector.main()
 
 if __name__ == "__main__":
-  main()
+    print("start")
+    main()
