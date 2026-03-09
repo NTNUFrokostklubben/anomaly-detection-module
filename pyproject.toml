@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "anomaly-detection-module"
+version = "0.0.1"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "geopandas>=0.14",
+    "shapely>=2.0",
+    "scikit-image>=0.22",
+    "pytest>=8.0",
+    "chardet>=5.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+    "integration",
+]
+pythonpath = ["src"]

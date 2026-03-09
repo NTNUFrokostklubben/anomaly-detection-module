@@ -18,11 +18,11 @@ To make it work right now you new to download the bundle files for gdal and the 
 
 ```python
 from pathlib import Path
-from src.services.sosi_converter_service import convert_sosi_to_gpkg, convert_sosi_to_GeoJson
+from src.services.sosi_converter_service import convert_sosi_to_gpkg, convert_sosi_to_geojson
 
 input_file = Path(__file__).parent / "file.sos"
 
 convert_sosi_to_gpkg(str(input_file), Path(__file__).parent / "file.gpkg")
-convert_sosi_to_GeoJson(str(input_file),Path(__file__).parent / "file.GeoJson")
+convert_sosi_to_geojson(str(input_file),Path(__file__).parent / "file.GeoJson")
 
 ```
