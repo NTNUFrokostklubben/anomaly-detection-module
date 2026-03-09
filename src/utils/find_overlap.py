@@ -4,6 +4,35 @@ import numpy as np
 from shapely.geometry import Polygon
 from skimage.transform import AffineTransform
 
+def find_image_row(gdf, img_num, strip_num):
+    gdf["bildenummer"] = gdf["bildenummer"].astype(int)
+    gdf["stripenummer"] = gdf["stripenummer"].astype(int)
+
+    row = gdf[
+        (gdf["bildenummer"] == img_num) &
+        (gdf["stripenummer"] == strip_num)
+    ].iloc[0]    
+
+    if row.empty:
+        raise ValueError(f"Image with number {img_num} and strip {strip_num} not found")
+    
+    return row
+
+def find_image_path(gdf, img_num, strip_num):
+    """
+    Find the file path for a given image number and strip number from the GeoPackage
+
+    Args:
+        gdf (GeoDataFrame): GeoDataFrame containing the image metadata
+        img_num (int): image number to find
+        strip_num (int): strip number to find
+    Returns:
+        str: file path for the image
+    """
+    row = find_image_row(gdf, img_num, strip_num)
+    
+    return row["bildefilRGB"]    
+
 def find_image_from_gpkg(gdf, img_num, strip_num):
     """
     Find the polygon for a given image number and strip number from the GeoPackage
@@ -17,18 +46,7 @@ def find_image_from_gpkg(gdf, img_num, strip_num):
     Returns:
         _type_: bounds for the overlapping region in pixel coordinates for both images, as tuples (min_x, max_x, min_y, max_y)
     """
-
-    gdf["bildenummer"] = gdf["bildenummer"].astype(int)
-    gdf["stripenummer"] = gdf["stripenummer"].astype(int)
-
-    row = gdf[
-        (gdf["bildenummer"] == img_num) &
-        (gdf["stripenummer"] == strip_num)
-    ].iloc[0]    
-
-    if row.empty:
-        raise ValueError(f"Image with number {img_num} and strip {strip_num} not found")
-       
+    row = find_image_row(gdf, img_num, strip_num)
     
     return row.geometry, int(row["ccdBrikkeside"]), int(row["ccdBrikkelengde"])
 
@@ -101,7 +119,7 @@ def get_bounds(px_coords, width, height):
     return min_x, max_x, min_y, max_y
 
 
-def get_overlap_pixel_images(gpkg_path, img1_num, strip1, img2_num, strip2):
+def get_overlap_pixel_images(gdf, img1_num, strip1, img2_num, strip2):
     """ Find the pixel bounds of the overlapping region between two images defined in a GeoPackage
 
     Args:
@@ -114,7 +132,6 @@ def get_overlap_pixel_images(gpkg_path, img1_num, strip1, img2_num, strip2):
     Returns:
         tuple[int, int, int, int]: bounds for the overlapping region in pixel coordinates for both images, as tuples (min_x, max_x, min_y, max_y)
     """
-    gdf = gpd.read_file(gpkg_path, layer="polygons", encoding="ISO-8859-1")
 
     poly1, width1, height1 = find_image_from_gpkg(gdf, img1_num, strip1)
     poly2, width2, height2 = find_image_from_gpkg(gdf, img2_num, strip2)

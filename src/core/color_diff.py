@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 from osgeo import gdal
 from utils.find_overlap import get_overlap_pixel_images
+from utils.load_sosi_content import get_gdf_content
 
 
 def color_average(ds) -> float:
@@ -19,25 +20,6 @@ def color_average(ds) -> float:
         arr = arr[np.newaxis, :, :]
     avg = arr.mean()
     return round(float(avg), 5)
-
-def get_crop_extent(ds, bounds):
-    min_x, max_x, min_y, max_y = bounds
-
-    gt = ds.GetGeoTransform()
-
-    px_w = gt[1]
-    px_h = gt[5]
-
-    origin_x = gt[0]
-    origin_y = gt[3]
-
-    world_min_x = origin_x + min_x * px_w
-    world_max_x = origin_x + max_x * px_w
-
-    world_min_y = origin_y + max_y * px_h
-    world_max_y = origin_y + min_y * px_h
-
-    return (world_min_x, world_min_y, world_max_x, world_max_y)
 
 def color_average_overlap(ds, bounds):
     """
@@ -88,9 +70,9 @@ def timer(func, *args, **kwargs):
     end = time.perf_counter()
     return result, end - start, 
 
-def check_difference_two_images(gpkg, img1_num, strip1, img1, img2_num, strip2, img2):
+def check_difference_two_images(gdf, img1_num, strip1, img1, img2_num, strip2, img2):
     
-    bounds1, bounds2 = get_overlap_pixel_images(gpkg, img1_num, strip1, img2_num, strip2)
+    bounds1, bounds2 = get_overlap_pixel_images(gdf, img1_num, strip1, img2_num, strip2)
 
     if bounds1 is None:
         print("No overlap")
@@ -112,23 +94,12 @@ def check_difference_two_images(gpkg, img1_num, strip1, img1, img2_num, strip2, 
     return avg1, avg2, diff, t
     
 
-def main():
-    data_path = Path(__file__).parent.parent.parent / "tests" / "testdata" / "RGB_testing"
-
-    img1 = data_path / "HX-14365_001_005_00005.tif"
-    img2 = data_path / "HX-14365_001_006_00006.tif"
-    
-    #add a check for fetching paths
-
-    gpkg = Path(__file__).parent.parent.parent / "tests" / "testdata" / "test_file_short.gpkg"
-    # TODO: make sure the program only loads the gpkg file in once
-    avg1, avg2, difference, time = check_difference_two_images(gpkg, 5, 1, img1, 6, 1, img2)
+def check_colour_difference(gdf, img1_num, strip1, img1, img2_num, strip2, img2):
+    avg1, avg2, difference, time = check_difference_two_images(gdf, img1_num, strip1, img1, img2_num, strip2, img2)
 
 
-    print(f"Image1 avg: {avg1}")
-    print(f"Image2 avg: {avg2}")
+    print(f"Image {img1_num} avg: {avg1}")
+    print(f"Image {img2_num} avg: {avg2}")
     print(f"Difference: {difference}")
     print(f"Time: {time:.6f}s")
-
-# if __name__ == "__main__":
-#     main()
+    print('------------')
