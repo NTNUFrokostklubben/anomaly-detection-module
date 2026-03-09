@@ -1,13 +1,19 @@
 import colorsys
+from concurrent.futures import  ProcessPoolExecutor
 from datetime import datetime
 from typing import Any
+from numba import njit, prange
+from os import listdir
+from os.path import isfile, join
 
 import numpy as np
+from fontTools.misc.timeTools import timestampNow
 from numpy import dtype, ndarray
 from osgeo import gdal
 from skimage import morphology
 from scipy import ndimage
 import matplotlib.pyplot as plt
+import cv2
 
 
 def load_geotiff(path) -> tuple[ndarray[tuple[Any, ...], dtype[Any]], gdal.Dataset]:
@@ -94,11 +100,11 @@ def create_water_mask_rgb(data: np.ndarray, increment) -> ndarray[tuple[bool]]:
                 previous = last_block
         else:
             idx += x_jump
-    return mask
+    return clean_water_mask(mask)
 
 def create_water_mask_hsl(data: np.ndarray, increment) -> ndarray[tuple[bool]]:
         """
-        This function creates a water mask using a jumping block algorithm.
+        This function creates a water mask using a jumping block algorithm uses HSL to find water instead of RGB.
 
         :param data: ndarray -  the image to create a water mask on
         :param increment: int - size of the block squared, not total pixels.
@@ -156,8 +162,202 @@ def create_water_mask_hsl(data: np.ndarray, increment) -> ndarray[tuple[bool]]:
                     previous = last_block
             else:
                 idx += x_jump
-        return mask
+        return clean_water_mask(mask)
 
+
+def create_water_mask_hsl_vectorized(data: np.ndarray, increment: int) -> np.ndarray:
+    r = data[0] / 255.0
+    g = data[1] / 255.0
+    b = data[2] / 255.0
+
+    # Pad so dimensions are divisible by increment
+    pad_y = (increment - data.shape[1] % increment) % increment
+    pad_x = (increment - data.shape[2] % increment) % increment
+    r = np.pad(r, ((0, pad_y), (0, pad_x)))
+    g = np.pad(g, ((0, pad_y), (0, pad_x)))
+    b = np.pad(b, ((0, pad_y), (0, pad_x)))
+
+    # Reshape into blocks and take mean of each block
+    h, w = r.shape
+    r_blocks = r.reshape(h // increment, increment, w // increment, increment).mean(axis=(1, 3))
+    g_blocks = g.reshape(h // increment, increment, w // increment, increment).mean(axis=(1, 3))
+    b_blocks = b.reshape(h // increment, increment, w // increment, increment).mean(axis=(1, 3))
+
+    # Vectorized RGB -> HLS on block means
+    max_c = np.maximum(np.maximum(r_blocks, g_blocks), b_blocks)
+    min_c = np.minimum(np.minimum(r_blocks, g_blocks), b_blocks)
+    delta = max_c - min_c
+
+    h_channel = np.zeros_like(r_blocks)
+    mask_delta = delta > 0
+
+    m = mask_delta & (max_c == r_blocks)
+    h_channel[m] = (60 * ((g_blocks[m] - b_blocks[m]) / delta[m])) % 360
+
+    m = mask_delta & (max_c == g_blocks)
+    h_channel[m] = 60 * ((b_blocks[m] - r_blocks[m]) / delta[m]) + 120
+
+    m = mask_delta & (max_c == b_blocks)
+    h_channel[m] = 60 * ((r_blocks[m] - g_blocks[m]) / delta[m]) + 240
+
+    # Water detection on block means
+    block_water = (h_channel > 170) & (h_channel < 260)
+
+    # Expand blocks back to original image size
+    mask = block_water.repeat(increment, axis=0).repeat(increment, axis=1)[:data.shape[1], :data.shape[2]]
+    return clean_water_mask(mask)
+
+@njit(parallel=True,cache=True)
+def create_water_mask_hsl_numba(data, increment):
+    y_shape = data.shape[1]
+    x_shape = data.shape[2]
+    mask = np.zeros((y_shape, x_shape), dtype=np.bool_)
+
+    y_blocks = (y_shape + increment - 1) // increment
+    x_blocks = (x_shape + increment - 1) // increment
+
+    for by in prange(y_blocks):  # parallel over rows, each row has its own `previous`
+        previous = False
+        for bx in range(x_blocks):
+            y_start = by * increment
+            x_start = bx * increment
+            y_end = min(y_start + increment, y_shape)
+            x_end = min(x_start + increment, x_shape)
+
+            r_sum = 0.0
+            g_sum = 0.0
+            b_sum = 0.0
+            count = (y_end - y_start) * (x_end - x_start)
+
+            for y in range(y_start, y_end):
+                for x in range(x_start, x_end):
+                    r_sum += data[0, y, x]
+                    g_sum += data[1, y, x]
+                    b_sum += data[2, y, x]
+
+            r_mean = (r_sum / count) / 255.0
+            g_mean = (g_sum / count) / 255.0
+            b_mean = (b_sum / count) / 255.0
+
+            max_c = max(r_mean, g_mean, b_mean)
+            min_c = min(r_mean, g_mean, b_mean)
+            delta = max_c - min_c
+
+            h = 0.0
+            if delta > 0:
+                if max_c == r_mean:
+                    h = (60 * ((g_mean - b_mean) / delta)) % 360
+                elif max_c == g_mean:
+                    h = 60 * ((b_mean - r_mean) / delta) + 120
+                else:
+                    h = 60 * ((r_mean - g_mean) / delta) + 240
+
+            is_water = 170.0 < h < 290.0
+
+            if is_water and delta > 0.06:
+                if previous:
+                    for y in range(y_start, y_end):
+                        for x in range(x_start, x_end):
+                            mask[y, x] = True
+                else:
+                    # coastline: scan columns to find where water starts
+                    coast_x = x_end  # default to no water found
+                    for i in range(x_start, x_end):
+                        r_col = 0.0
+                        g_col = 0.0
+                        b_col = 0.0
+                        for y in range(y_start, y_end):
+                            r_col += data[0, y, i]
+                            g_col += data[1, y, i]
+                            b_col += data[2, y, i]
+                        col_count = y_end - y_start
+                        if b_col > r_col and b_col > g_col:
+                            coast_x = i
+                            break
+                    for y in range(y_start, y_end):
+                        for x in range(coast_x, x_end):
+                            mask[y, x] = True
+                previous = True
+            else:
+                previous = False
+
+    return mask
+
+
+@njit(parallel=True, cache=True)
+def create_water_mask_rgb_numba(data, increment):
+    y_shape = data.shape[1]
+    x_shape = data.shape[2]
+    mask = np.zeros((y_shape, x_shape), dtype=np.bool_)
+
+    y_blocks = (y_shape + increment - 1) // increment
+    x_blocks = (x_shape + increment - 1) // increment
+
+    for by in prange(y_blocks):
+        previous = False
+        for bx in range(x_blocks):
+            y_start = by * increment
+            x_start = bx * increment
+            y_end = min(y_start + increment, y_shape)
+            x_end = min(x_start + increment, x_shape)
+
+            r_sum = 0.0
+            g_sum = 0.0
+            b_sum = 0.0
+            count = (y_end - y_start) * (x_end - x_start)
+
+            for y in range(y_start, y_end):
+                for x in range(x_start, x_end):
+                    r_sum += data[0, y, x]
+                    g_sum += data[1, y, x]
+                    b_sum += data[2, y, x]
+
+            r_mean = r_sum / count
+            g_mean = g_sum / count
+            b_mean = b_sum / count
+
+            blue_ratio = b_mean / (r_mean + g_mean + b_mean + 1e-6)
+            blue_dominant = b_mean > r_mean and b_mean > g_mean
+            red_suppressed = r_mean < (b_mean + g_mean) * 0.5
+            is_deep_water = blue_dominant and 28.0 < b_mean < 78.0 and blue_ratio > 0.36 and r_mean < 30
+            chroma_approx = max(r_mean, g_mean, b_mean) - min(r_mean, g_mean, b_mean)
+
+            is_turquoise = (
+                    r_mean < 50.0 and  # red suppressed
+                    g_mean > 60.0 and  # green actually present
+                    b_mean > 55.0 and  # blue actually present
+                    r_mean < g_mean and
+                    chroma_approx > 25.0  # not a washed out grey
+            )
+
+            is_water = is_deep_water or is_turquoise
+
+            if is_water:
+                if previous:
+                    for y in range(y_start, y_end):
+                        for x in range(x_start, x_end):
+                            mask[y, x] = True
+                else:
+                    coast_x = x_end
+                    for i in range(x_start, x_end):
+                        r_col = 0.0
+                        g_col = 0.0
+                        b_col = 0.0
+                        for y in range(y_start, y_end):
+                            r_col += data[0, y, i]
+                            g_col += data[1, y, i]
+                            b_col += data[2, y, i]
+                        if b_col > r_col and b_col > g_col:
+                            coast_x = i
+                            break
+                    for y in range(y_start, y_end):
+                        for x in range(coast_x, x_end):
+                            mask[y, x] = True
+                previous = True
+            else:
+                previous = False
+
+    return mask
 
 def __block_slicer(block_slice, x_jump, y_jump):
 
@@ -234,6 +434,86 @@ def detect_holes2(mask):
     print(num_holes)
     plt.imshow(cleaned)
     plt.show()
+
+
+def edge_detect(data, low = 50, high = 150):
+    img = np.dstack([data[0], data[1], data[2]])
+
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    edges = cv2.Canny(gray.astype(np.uint8), low, high)
+
+    # img = np.dstack([data[0], data[1], data[2]])
+    # gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    # _, rgb_water_mask = cv2.threshold(gray, 30, 255, cv2.THRESH_BINARY_INV)
+    """
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    axes[0].imshow(img, cmap='gray')
+    axes[0].set_title('Original')
+    axes[1].imshow(edges, cmap='gray')
+    axes[1].set_title(f'Canny (low={low}, high={high})')
+    plt.tight_layout()
+    plt.show()
+    """
+    return edges
+
+def run_all_images(folder, increment):
+    mypath = folder
+    # mypath = r"D:\HX-14365_NordmøreGSD10\RGB"
+    onlyfiles = [f for f in listdir(mypath) if isfile(join(mypath, f))]
+    dataset = []
+    for idx in range(len(onlyfiles)):
+        data, _ = load_geotiff(path=mypath + "\\" + onlyfiles[idx])
+        # dataset.insert(idx, gdal.Open(mypath + "\\" + onlyfiles[idx]))
+        hsl_mask = clean_water_mask(create_water_mask_hsl_numba(data, increment))
+        rgb_mask = clean_water_mask(create_water_mask_rgb_numba(data, increment))
+
+        discrepancy = hsl_mask & ~rgb_mask  # pixels HSL sees but RGB doesn't
+        hsl_pixels = np.sum(hsl_mask)
+        rgb_pixels = np.sum(rgb_mask)
+        if hsl_pixels != 0 and rgb_pixels != 0:
+            discrepancy_ratio = np.sum(discrepancy) / hsl_pixels
+        elif (hsl_pixels == 0 and rgb_pixels != 0) or (rgb_pixels == 0 and hsl_pixels != 0):
+            discrepancy_ratio = 1
+        else:
+            print("error on image" + onlyfiles[idx])
+
+        print("image " + onlyfiles[idx])
+        print(discrepancy_ratio)
+        print(discrepancy_ratio > 0.5)
+
+def hsl_rgb_comparison(data, increment):
+    hsl_mask = clean_water_mask(create_water_mask_hsl_numba(data, increment))
+    rgb_mask = clean_water_mask(create_water_mask_rgb_numba(data, increment))
+    rows_hsl, cols_hsl = np.nonzero(hsl_mask)
+    rows_rgb, cols_rgb = np.nonzero(rgb_mask)
+
+    if rows_hsl.size > rows_rgb.size:
+        crop_rows = rows_hsl
+    else:
+        crop_rows = rows_rgb.size
+    if cols_rgb.size > cols_hsl.size:
+        crop_cols = cols_rgb
+    else:
+        crop_cols = cols_hsl
+
+    cropped_hsl = hsl_mask[crop_rows.min():crop_rows.max() + 1, crop_cols.min():crop_cols.max() + 1]
+    cropped_rgb = rgb_mask[crop_rows.min():crop_rows.max() + 1, crop_cols.min():crop_cols.max() + 1]
+    discrepancy = cropped_hsl & ~cropped_rgb  # pixels HSL sees but RGB doesn't
+    hsl_pixels = np.sum(cropped_hsl)
+    discrepancy_ratio = np.sum(discrepancy) / hsl_pixels
+    if hsl_pixels == 0:
+        return False
+    print(discrepancy_ratio)
+    print(discrepancy_ratio > 0.5)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    axes[0].imshow(cropped_hsl, cmap='gray')
+    axes[0].set_title('hsl')
+    axes[1].imshow(cropped_rgb, cmap='gray')
+    axes[1].set_title(f'rgb')
+    plt.tight_layout()
+    plt.show()
+    return 0
 # --- Main ---
 def main():
 
@@ -242,25 +522,62 @@ def main():
     :return:
     """
     gdal.DontUseExceptions()
-    #data, _ = load_geotiff(r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_042_14863-pink.tif")
+    folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images"
+    #data, _ = load_geotiff(r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_047_14868.tif")
     data, _ = load_geotiff(
-        r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\HX-13173_112_002_5547.tif")
-    mask = create_water_mask_hsl(data, 30)
-    mask = clean_water_mask(mask)
+        r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_015_14836.tif")
+    #data, _ = load_geotiff(
+     #   r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\HX-13173_112_002_5547.tif")
+    increment = 30
+
+    #run_all_images(folder, increment)
+
+    hsl_rgb_comparison(data, increment )
+
+
+    """ print("numba function time HSL and RGB")
+    before = datetime.now()
+    # mask_rgb = create_water_mask_rgb(data, increment)
+    mask_numba_hsl = create_water_mask_hsl_numba(data, increment)
+    mask_numba_rgb = create_water_mask_rgb_numba(data, increment)
+    clean_numba_mask_hsl=clean_water_mask(mask_numba_hsl)
+    clean_numba_mask_rgb=clean_water_mask(mask_numba_rgb)
+    after = datetime.now()
+    print(after - before)"""
+
+    """
+    print("naive function time")
+    before = datetime.now()
+    # mask_rgb = create_water_mask_rgb(data, increment)
+    mask_hsl = create_water_mask_hsl(data, increment)
+    after = datetime.now()
+    print(after - before)
+
+    print("vectorized function time")
+    before = datetime.now()
+    #with ProcessPoolExecutor() as executor:
+       # t_hsl = executor.submit(create_water_mask_hsl_vectorized, data, increment)
+        ##t_rgb = executor.submit(create_water_mask_rgb, data, increment)
+    mask_vec = create_water_mask_hsl_vectorized(data, increment)
+    after = datetime.now()
+    print(after-before)
+    """
+
+
     #mask = smoothing(mask, 150, 0.4)
     #rows, cols = np.nonzero(mask)
     #mask = mask[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
     #detect_holes2(mask)
 
-
-    r = np.where(mask, data[0], 255)
-    g = np.where(mask, data[1], 255)
-    b = np.where(mask, data[2], 255)
+    """r = np.where(hsl_mask, data[0], 255)
+    g = np.where(hsl_mask, data[1], 255)
+    b = np.where(hsl_mask, data[2], 255)
     img = np.dstack((r, g, b))
-    rows, cols = np.nonzero(mask)
+    rows, cols = np.nonzero(hsl_mask)
     cropped = img[ rows.min():rows.max() + 1, cols.min():cols.max() + 1, : ]
-
+    
     plt.imshow(cropped)
-    plt.show()
+    plt.show()"""
+
 
 
