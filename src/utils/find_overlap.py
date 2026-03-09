@@ -52,8 +52,6 @@ def build_transform_from_polygon(poly, width, height):
         raise ValueError("Polygon must have exactly 4 corners")
 
     # Reorder to match pixel coordinates
-    # Pixel coordinates are:
-    # [top-left, top-right, bottom-right, bottom-left]
     world_coords_ordered = np.array([
         world_coords[2],  # top-left
         world_coords[1],  # top-right
@@ -61,7 +59,6 @@ def build_transform_from_polygon(poly, width, height):
         world_coords[3]   # bottom-left
     ])
     
-
     # Pixel coordinates
     pixel_coords = np.array([
         [0, 0],             # top-left
@@ -81,6 +78,14 @@ def build_transform_from_polygon(poly, width, height):
 def get_bounds(px_coords, width, height):
     """
     Get safe integer crop bounds
+
+    Args:
+        px_coords (np.ndarray): Nx2 array of pixel coordinates for the overlap polygon
+        width (int): width of the image in pixels
+        height (int): height of the image in pixels
+
+    Returns:
+        tuple[int, int, int, int]: bounds for the overlapping region in pixel coordinates, as tuples (min_x, max_x, min_y, max_y)
     """
     min_x = int(np.floor(px_coords[:, 0].min()))
     max_x = int(np.ceil(px_coords[:, 0].max()))
@@ -141,4 +146,3 @@ def get_overlap_pixel_images(gpkg_path, img1_num, strip1, img2_num, strip2):
     bounds2 = get_bounds(overlap_px2, width2, height2)
 
     return bounds1, bounds2
-

@@ -153,3 +153,4 @@ def main():
     plt.imshow(cropped)
     plt.show()
 
+main()
