@@ -1,13 +1,13 @@
 import colorsys
-from concurrent.futures import  ProcessPoolExecutor
-from datetime import datetime
+
+from pathlib import Path
 from typing import Any
 from numba import njit, prange
 from os import listdir
 from os.path import isfile, join
 
 import numpy as np
-from fontTools.misc.timeTools import timestampNow
+
 from numpy import dtype, ndarray
 from osgeo import gdal
 from skimage import morphology
@@ -254,7 +254,7 @@ def create_water_mask_hsl_numba(data, increment):
 
             is_water = 170.0 < h < 290.0
 
-            if is_water and delta > 0.06:
+            if is_water:
                 if previous:
                     for y in range(y_start, y_end):
                         for x in range(x_start, x_end):
@@ -459,7 +459,7 @@ def edge_detect(data, low = 50, high = 150):
 def run_all_images(folder, increment):
     mypath = folder
     # mypath = r"D:\HX-14365_NordmøreGSD10\RGB"
-    onlyfiles = [f for f in listdir(mypath) if isfile(join(mypath, f))]
+    onlyfiles = [f for f in listdir(mypath) if isfile(join(mypath, f)) and Path(f).suffix==".tif" ]
     dataset = []
     for idx in range(len(onlyfiles)):
         data, _ = load_geotiff(path=mypath + "\\" + onlyfiles[idx])
@@ -523,16 +523,17 @@ def main():
     """
     gdal.DontUseExceptions()
     folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images"
+    folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173"
     #data, _ = load_geotiff(r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_047_14868.tif")
     data, _ = load_geotiff(
-        r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_015_14836.tif")
+        r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_007_14828.tif")
     #data, _ = load_geotiff(
-     #   r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\HX-13173_112_002_5547.tif")
+    #    r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\HX-13173_112_002_5547.tif")
     increment = 30
 
-    #run_all_images(folder, increment)
+    run_all_images(folder, increment)
 
-    hsl_rgb_comparison(data, increment )
+    #hsl_rgb_comparison(data, increment )
 
 
     """ print("numba function time HSL and RGB")
