@@ -2,7 +2,7 @@ import colorsys
 import math
 import os
 from datetime import datetime
-
+import tifffile as ti
 from pathlib import Path
 from typing import Any
 from numba import njit, prange, cuda
@@ -418,7 +418,7 @@ def find_water_polygon(gpkg_path: str):
     print(f"Total polygons: {len(gdf)}")
 
 def main():
-
+    print
     """
     Function for testing water mask creation
     :return:
@@ -432,19 +432,37 @@ def main():
 
 
     gdal.DontUseExceptions()
-    path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\Vann_22.gpkg"
+    #path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\Vann_22.gpkg"
 
-    find_water_polygon(path)
+    import imagecodecs
+    print(imagecodecs.jpeg8_version())
+    start = datetime.now()
+    arr = ti.imread(r"C:\Users\Augus\Documents\Skule\bachelor\testing-images\HX-14365_073_011_14832.tif", maxworkers=8)
+    print("read time:", datetime.now() - start)
+    arr = np.ascontiguousarray(arr.transpose(2, 0, 1))
+
+    #find_water_polygon(path)
 
     #folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images"
     #folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173"
     #data, _ = load_geotiff(r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_047_14868.tif")
-    #data, _ = load_geotiff(
-     #   r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_007_14828.tif")
+
+
+
+
+   # data, _ = load_geotiff(
+       # r"C:\Users\Augus\Documents\Skule\bachelor\testing-images\HX-14365_073_011_14832.tif")
+    #print("read data:", datetime.now() - start)
     #data, _ = load_geotiff(
     #    r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\HX-13173_112_002_5547.tif")
-    #increment = 30
+    increment = 30
+    start = datetime.now()
+    mask_cuda = create_water_mask_hsl_cuda(arr, increment)
+    print("cuda time:", datetime.now() - start)
 
+    start = datetime.now()
+    mask_hsl= create_water_mask_hsl_numba(arr, increment)
+    print("cached CPU time:", datetime.now() - start)
 
 
     #run_all_images(folder, increment)
