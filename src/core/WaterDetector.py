@@ -134,7 +134,7 @@ def create_water_mask_hsl_numba(data, increment):
     return mask
 
 @cuda.jit
-def _hsl_compute_blocks_kernel(data, mask, increment):
+def _hsl_compute_blocks_kernel(data: np.ndarray, mask, increment):
     bx, by = cuda.grid(2)
     y_shape = data.shape[1]
     x_shape = data.shape[2]
@@ -406,9 +406,9 @@ def hsl_rgb_comparison(data, increment):
 # --- Main ---
 
 def find_water_polygon(gpkg_path: str):
+    gdf = gpd.read_file(gpkg_path, layer="polygons")
 
-    gdf = gpd.read_file(gpkg_path, layer="polygons", encoding="ISO-8859-1")
-    gdf.columns = [col.encode("latin-1").decode("utf-8-sig") for col in gdf.columns]
+    gdf.columns = [col.encode("latin-1").decode("utf-8") for col in gdf.columns]
     """print(gdf.columns.tolist())
     print(gdf.dtypes)
     print(gdf.head(2))"""
