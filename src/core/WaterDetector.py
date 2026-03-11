@@ -16,6 +16,7 @@ from osgeo import gdal
 from skimage import morphology
 from scipy import ndimage
 import matplotlib.pyplot as plt
+import geopandas as gpd
 
 
 
@@ -404,31 +405,49 @@ def hsl_rgb_comparison(data, increment):
     return 0
 # --- Main ---
 
+def find_water_polygon(gpkg_path: str):
+
+    gdf = gpd.read_file(gpkg_path, layer="polygons", encoding="ISO-8859-1")
+    gdf.columns = [col.encode("latin-1").decode("utf-8-sig") for col in gdf.columns]
+    """print(gdf.columns.tolist())
+    print(gdf.dtypes)
+    print(gdf.head(2))"""
+
+    print(gdf["objekttypenavn"].unique())
+    print(gdf["REGULERT"].unique())
+    print(f"Total polygons: {len(gdf)}")
+
 def main():
 
     """
     Function for testing water mask creation
     :return:
     """
-    os.environ['NUMBA_CACHE_DIR'] = 'C:/Users/name/numba_cache'
+    """os.environ['NUMBA_CACHE_DIR'] = 'C:/Users/name/numba_cache'
     dummy = np.zeros((3, 10, 10), dtype=np.uint8)
     start = datetime.now()
     create_water_mask_hsl_numba(dummy, 5)
     create_water_mask_hsl_numba(dummy, 5)
-    print("compile time:", datetime.now() - start)
+    print("compile time:", datetime.now() - start)"""
 
 
     gdal.DontUseExceptions()
-    folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images"
+    path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\Vann_22.gpkg"
+
+    find_water_polygon(path)
+
+    #folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images"
     #folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173"
     #data, _ = load_geotiff(r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_047_14868.tif")
     #data, _ = load_geotiff(
      #   r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_007_14828.tif")
     #data, _ = load_geotiff(
     #    r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\HX-13173_112_002_5547.tif")
-    increment = 30
+    #increment = 30
 
-    run_all_images(folder, increment)
+
+
+    #run_all_images(folder, increment)
 
     #hsl_rgb_comparison(data, increment )
 
