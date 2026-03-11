@@ -47,8 +47,11 @@ def find_image_from_gpkg(gdf, img_num, strip_num):
         _type_: bounds for the overlapping region in pixel coordinates for both images, as tuples (min_x, max_x, min_y, max_y)
     """
     row = find_image_row(gdf, img_num, strip_num)
-    
-    return row.geometry, int(row["ccdBrikkeside"]), int(row["ccdBrikkelengde"])
+    poly = row.geometry
+    width = int(row["ccdBrikkeside"])
+    height = int(row["ccdBrikkelengde"])
+
+    return poly, width, height
 
 def build_transform_from_polygon(poly, width, height):
     """
@@ -140,7 +143,6 @@ def get_overlap_pixel_images(gdf, img1_num, strip1, img2_num, strip2):
     overlap_world = poly1.intersection(poly2)
 
     if overlap_world.is_empty:
-        print("No overlap found.")
         return None, None
 
     # Build affine transforms

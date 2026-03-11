@@ -3,8 +3,8 @@ import numpy as np
 from pathlib import Path
 from osgeo import gdal
 from utils.find_overlap import get_overlap_pixel_images
-from utils.load_sosi_content import get_gdf_content
-
+from skimage.color import rgb2hsv
+from skimage.io import imread
 
 def color_average(ds) -> float:
     """ Calculate the average color value of a GDAL dataset by reading each band separately and averaging their values.
@@ -21,31 +21,41 @@ def color_average(ds) -> float:
     avg = arr.mean()
     return round(float(avg), 5)
 
-def color_average_overlap(ds, bounds):
+
+def color_average_overlap(ds, bounds, scale=0):
     """
-    Calculate average color for a cropped overlap region
-
-    Args:
-        ds (gdal.Dataset): image dataset
-        bounds (tuple): (min_x, max_x, min_y, max_y)
-
-    Returns:
-        float: average color value
+    Calculate average brightness (V) for a cropped overlap region using downsampled read.
     """
 
     min_x, max_x, min_y, max_y = bounds
+    width = max_x - min_x
+    height = max_y - min_y
 
-    arr = ds.ReadAsArray()
-    arr = arr[:, min_y:max_y, min_x:max_x]
+    buf_x = max(1, width // (2**scale))
+    buf_y = max(1, height // (2**scale))
 
-    if arr.ndim == 2:
-        arr = arr[np.newaxis, :, :]
+    arr = ds.ReadAsArray(
+        xoff=min_x,
+        yoff=min_y,
+        xsize=width,
+        ysize=height,
+        buf_xsize=buf_x,
+        buf_ysize=buf_y,
+    )
 
     return round(float(arr.mean()), 5)
 
 def overlap_color_difference(ds1, ds2, bounds1, bounds2):
     """
     Compute color difference between overlapping image regions
+    
+    Args:
+        ds1 (gdal.Dataset): first image dataset
+        ds2 (gdal.Dataset): second image dataset
+        bounds1 (tuple): bounds for the overlapping region in the first image (min_x, max_x, min_y, max_y)
+        bounds2 (tuple): bounds for the overlapping region in the second image (min_x, max_x, min_y, max_y)
+    Returns:
+        tuple: (avg1, avg2, diff) where avg1 and avg2 are the average brightness values, and diff is the absolute difference between them    
     """
 
     avg1 = color_average_overlap(ds1, bounds1)
@@ -93,13 +103,3 @@ def check_difference_two_images(gdf, img1_num, strip1, img1, img2_num, strip2, i
     
     return avg1, avg2, diff, t
     
-
-def check_colour_difference(gdf, img1_num, strip1, img1, img2_num, strip2, img2):
-    avg1, avg2, difference, time = check_difference_two_images(gdf, img1_num, strip1, img1, img2_num, strip2, img2)
-
-
-    print(f"Image {img1_num} avg: {avg1}")
-    print(f"Image {img2_num} avg: {avg2}")
-    print(f"Difference: {difference}")
-    print(f"Time: {time:.6f}s")
-    print('------------')

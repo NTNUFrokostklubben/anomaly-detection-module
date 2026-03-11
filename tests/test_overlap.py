@@ -2,10 +2,11 @@ import pytest
 from pathlib import Path
 
 from utils.find_overlap import get_overlap_pixel_images
+from utils.load_sosi_content import get_gdf_content
 
 
-BASE_PATH = Path(__file__).parent / "testdata"
-GPKG_PATH = BASE_PATH / "test_file_short.gpkg"
+gpgk_path = Path(__file__).parent.parent / "tests" / "testdata" / "test_file_short.gpkg"
+gdf = get_gdf_content(gpgk_path)
 
 
 def test_full_overlap():
@@ -17,7 +18,7 @@ def test_full_overlap():
     img2_num, strip2 = 1, 1  # same image
 
     bounds1, bounds2 = get_overlap_pixel_images(
-        GPKG_PATH,
+        gdf,
         img1_num,
         strip1,
         img2_num,
@@ -40,7 +41,7 @@ def test_partial_overlap():
     img2_num, strip2 = 6, 1
 
     bounds1, bounds2 = get_overlap_pixel_images(
-        GPKG_PATH,
+        gdf,
         img1_num,
         strip1,
         img2_num,
@@ -70,7 +71,7 @@ def test_no_overlap():
     img2_num, strip2 = 10, 1  # assume far away / non-existent overlap
 
     bounds1, bounds2 = get_overlap_pixel_images(
-        GPKG_PATH,
+        gdf,
         img1_num,
         strip1,
         img2_num,
