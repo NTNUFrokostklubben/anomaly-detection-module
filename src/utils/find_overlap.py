@@ -4,7 +4,18 @@ import numpy as np
 from shapely.geometry import Polygon
 from skimage.transform import AffineTransform
 
-def find_image_row(gdf, img_num, strip_num):
+def find_image_row(gdf: gpd.GeoDataFrame, img_num: int, strip_num: int):
+    """
+    Find the row data for a given image number and strip number from the GeoPackage
+    Args:
+        gdf (GeoDataFrame): GeoDataFrame containing the image metadata:
+        img_num (int): image number to find
+        strip_num (int): strip number to find
+
+    Returns:
+        row data for the given image number and strip number from the GeoPackage
+
+    """
     gdf["bildenummer"] = gdf["bildenummer"].astype(int)
     gdf["stripenummer"] = gdf["stripenummer"].astype(int)
 
@@ -18,7 +29,7 @@ def find_image_row(gdf, img_num, strip_num):
     
     return row
 
-def find_image_path(gdf, img_num, strip_num):
+def find_image_path(gdf: gpd.GeoDataFrame, img_num, strip_num) -> str:
     """
     Find the file path for a given image number and strip number from the GeoPackage
 
@@ -27,24 +38,24 @@ def find_image_path(gdf, img_num, strip_num):
         img_num (int): image number to find
         strip_num (int): strip number to find
     Returns:
-        str: file path for the image
+        file path for the image
     """
     row = find_image_row(gdf, img_num, strip_num)
     
     return row["bildefilRGB"]    
 
-def find_image_from_gpkg(gdf, img_num, strip_num):
+def find_image_from_gpkg(gdf: gpd.GeoDataFrame, img_num: int, strip_num: int) -> tuple[Polygon, int, int]:
     """
     Find the polygon for a given image number and strip number from the GeoPackage
     Returns the polygon and the image dimensions (width, height) as integers
     
     Args:
         gdf (_type_): polygon geometry for the image footprint
-        img_num (int): witdh of the image in pixels
+        img_num (int): width of the image in pixels
         strip_num (int): Strip number for the image
 
     Returns:
-        _type_: bounds for the overlapping region in pixel coordinates for both images, as tuples (min_x, max_x, min_y, max_y)
+        bounds for the overlapping region in pixel coordinates for both images, as tuples (min_x, max_x, min_y, max_y)
     """
     row = find_image_row(gdf, img_num, strip_num)
     poly = row.geometry
@@ -53,7 +64,7 @@ def find_image_from_gpkg(gdf, img_num, strip_num):
 
     return poly, width, height
 
-def build_transform_from_polygon(poly, width, height):
+def build_transform_from_polygon(poly: Polygon, width: int, height: int) -> AffineTransform :
     """
     Build affine transform from world coordinates -> pixel coordinates
     Assumes poly.exterior.coords order:
@@ -61,11 +72,11 @@ def build_transform_from_polygon(poly, width, height):
     
     Args:
         poly (Polygon): polygon geometry for the image footprint
-        width (int): witdh of the image in pixels
+        width (int): width of the image in pixels
         height (int): height of the image in pixels
 
     Returns:
-        AffineTransform: AffineTransform object that maps world coordinates to pixel coordinates
+        AffineTransform object that maps world coordinates to pixel coordinates
     """
 
     world_coords = np.array(poly.exterior.coords[:-1])  # remove duplicate last point
@@ -96,7 +107,7 @@ def build_transform_from_polygon(poly, width, height):
     return tform
 
 
-def get_bounds(px_coords, width, height):
+def get_bounds(px_coords: np.ndarray, width: int, height: int) -> tuple[int, int, int, int]:
     """
     Get safe integer crop bounds
 
@@ -106,7 +117,7 @@ def get_bounds(px_coords, width, height):
         height (int): height of the image in pixels
 
     Returns:
-        tuple[int, int, int, int]: bounds for the overlapping region in pixel coordinates, as tuples (min_x, max_x, min_y, max_y)
+        bounds for the overlapping region in pixel coordinates, as tuples (min_x, max_x, min_y, max_y)
     """
     min_x = int(np.floor(px_coords[:, 0].min()))
     max_x = int(np.ceil(px_coords[:, 0].max()))
@@ -122,18 +133,18 @@ def get_bounds(px_coords, width, height):
     return min_x, max_x, min_y, max_y
 
 
-def get_overlap_pixel_images(gdf, img1_num, strip1, img2_num, strip2):
+def get_overlap_pixel_images(gdf: gpd.GeoDataFrame, img1_num: int, strip1: int, img2_num: int, strip2: int) -> tuple[int, int, int, int]:
     """ Find the pixel bounds of the overlapping region between two images defined in a GeoPackage
 
     Args:
-        gpkg_path (str): path to the GeoPackage file
+        gdf (str): path to the GeoPackage file
         img1_num (int): image number for the first image
         strip1 (int): strip number for the first image
         img2_num (int): image number for the second image
         strip2 (int): strip number for the second image
 
     Returns:
-        tuple[int, int, int, int]: bounds for the overlapping region in pixel coordinates for both images, as tuples (min_x, max_x, min_y, max_y)
+        bounds for the overlapping region in pixel coordinates for both images, as tuples (min_x, max_x, min_y, max_y)
     """
 
     poly1, width1, height1 = find_image_from_gpkg(gdf, img1_num, strip1)

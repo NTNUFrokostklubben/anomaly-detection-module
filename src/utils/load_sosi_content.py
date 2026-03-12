@@ -15,7 +15,7 @@ def convert_sosi_get_gdf(input_file: Path) -> gpd.GeoDataFrame:
 
 
 
-def get_gdf_content(gpkg_path: Path) -> geopandas.GeoDataFrame:
+def get_gdf_content(gpkg_path: Path) -> gpd.GeoDataFrame:
     """Load a GeoPackage file and return its content as a GeoDataFrame.
     
     Args:
