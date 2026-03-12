@@ -1,8 +1,8 @@
 import colorsys
 import math
-import os
+import imagecodecs
 from datetime import datetime
-import tifffile as ti
+import tifffile as tf
 from pathlib import Path
 from typing import Any
 from numba import njit, prange, cuda
@@ -17,19 +17,24 @@ from skimage import morphology
 from scipy import ndimage
 import matplotlib.pyplot as plt
 import geopandas as gpd
+from shapely.ops import unary_union
+
+from affine import Affine as af
+from rasterio.features import geometry_mask
+from shapely.geometry import box
 
 
 
-def load_geotiff(path) -> tuple[ndarray[tuple[Any, ...], dtype[Any]], gdal.Dataset]:
+def load_geotiff_dataset(path) ->  gdal.Dataset:
     """
     Load geotiff image into memory. Temporary function
     :param path: path to the tiff image
     :return: the image as array in shape(bands, H, W) and the gdal dataset.
     """
     ds = gdal.OpenEx(path)
-    data = ds.ReadAsArray()  # shape: (bands, H, W)
+    #data = ds.ReadAsArray()  # shape: (bands, H, W)
     print("fin read")
-    return data, ds
+    return ds
 
 def smoothing(mask: np.ndarray, increment, sensitivity):
     """
@@ -49,6 +54,20 @@ def smoothing(mask: np.ndarray, increment, sensitivity):
     return mask
 
 
+def __find_image_row(gdf, img_name):
+    """
+    Temporary function until utils are pushed to develop
+    :param gdf:
+    :param img_num:
+    :param strip_num:
+    :return:
+    """
+    matches = gdf[gdf["bildefilRGB"] == img_name]
+
+    if matches.empty:
+        raise ValueError(f"Image with name {img_name} not found")
+
+    return matches.iloc[0]
 
 @njit(parallel=True,cache=True)
 def create_water_mask_hsl_numba(data, increment):
@@ -339,7 +358,7 @@ def run_all_images(folder, increment):
     onlyfiles = [f for f in listdir(mypath) if isfile(join(mypath, f)) and Path(f).suffix==".tif" ]
     dataset = []
     for idx in range(len(onlyfiles)):
-        data, _ = load_geotiff(path=mypath + "\\" + onlyfiles[idx])
+        data, _ = load_geotiff_dataset(path=mypath + "\\" + onlyfiles[idx])
         # dataset.insert(idx, gdal.Open(mypath + "\\" + onlyfiles[idx]))
 
         start = datetime.now()
@@ -405,43 +424,97 @@ def hsl_rgb_comparison(data, increment):
     return 0
 # --- Main ---
 
-def find_water_polygon(gpkg_path: str):
+def find_water_polygon(gpkg_path: str, sosi_path: str, img_name: str, ds: gdal.Dataset, img_data: np.ndarray):
+    """
+
+    :param gpkg_path:
+    :param sosi_path:
+    :param img_name:
+    :return:
+    """
     gdf = gpd.read_file(gpkg_path, layer="polygons")
+    sosidf = gpd.read_file(sosi_path, layer="polygons")
 
-    gdf.columns = [col.encode("latin-1").decode("utf-8") for col in gdf.columns]
-    """print(gdf.columns.tolist())
-    print(gdf.dtypes)
-    print(gdf.head(2))"""
+    row = __find_image_row(sosidf,img_name)
 
-    print(gdf["objekttypenavn"].unique())
-    print(gdf["REGULERT"].unique())
-    print(f"Total polygons: {len(gdf)}")
+
+    gt = ds.GetGeoTransform()
+    width = ds.RasterXSize
+    height = ds.RasterYSize
+    print(gt)
+    ds = None
+    affine = af.from_gdal(*gt)
+    overlap = gdf['geometry'].intersects(row['geometry'])
+    merged = unary_union(gdf[overlap]['geometry'])
+    mask = geometry_mask(
+        [merged],
+        transform=affine,
+        invert=True,
+        out_shape=(height, width)
+    )
+    img_bounds = box(
+        gt[0],  # left
+        gt[3] + height * gt[5],  # bottom
+        gt[0] + width * gt[1],  # right
+        gt[3]  # top
+    )
+
+    h, w = height, width
+
+    corners = np.array([
+        [0, 0],
+        [w, 0],
+        [w, h],
+        [0, h]
+    ])
+
+    # Transform pixel corners to geo coordinates
+    geo_corners = np.array([
+        [gt[0] + c[0] * gt[1] + c[1] * gt[2],
+         gt[3] + c[0] * gt[4] + c[1] * gt[5]]
+        for c in corners
+    ])
+
+    print("Image geo corners:")
+    for i, (px, geo) in enumerate(zip(corners, geo_corners)):
+        print(f"  pixel {px} -> geo {geo}")
+
+    print(f"\nTrue geo bounds:")
+    print(f"  X: {geo_corners[:, 0].min():.2f} to {geo_corners[:, 0].max():.2f}")
+    print(f"  Y: {geo_corners[:, 1].min():.2f} to {geo_corners[:, 1].max():.2f}")
+    masked_img = img_data * mask[np.newaxis, ...]
+    masked_img = np.ascontiguousarray(masked_img.transpose(1, 2, 0))
+    plt.imshow(masked_img)
+    plt.show()
+
 
 def main():
-    print
     """
     Function for testing water mask creation
     :return:
     """
-    """os.environ['NUMBA_CACHE_DIR'] = 'C:/Users/name/numba_cache'
-    dummy = np.zeros((3, 10, 10), dtype=np.uint8)
-    start = datetime.now()
-    create_water_mask_hsl_numba(dummy, 5)
-    create_water_mask_hsl_numba(dummy, 5)
-    print("compile time:", datetime.now() - start)"""
-
 
     gdal.DontUseExceptions()
-    #path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\Vann_22.gpkg"
+    path_gpkq = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\Vann_22.gpkg"
+    path_sosi = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\HX-14365_Vertikalbilde.gpkg"
 
-    import imagecodecs
-    print(imagecodecs.jpeg8_version())
+    img_arr = tf.imread(
+        r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_047_14868.tif",
+        maxworkers=8)
+    img_arr = np.ascontiguousarray(img_arr.transpose(2, 0, 1))
+    ds = load_geotiff_dataset(
+        r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_047_14868.tif")
+    img_name = "HX-14365_073_047_14868.tif"
+    find_water_polygon(path_gpkq, path_sosi, img_name, ds, img_arr)
+
+
+    """print(imagecodecs.jpeg8_version())
     start = datetime.now()
-    arr = ti.imread(r"C:\Users\Augus\Documents\Skule\bachelor\testing-images\HX-14365_073_011_14832.tif", maxworkers=8)
+ 
     print("read time:", datetime.now() - start)
-    arr = np.ascontiguousarray(arr.transpose(2, 0, 1))
+    arr = np.ascontiguousarray(arr.transpose(2, 0, 1))"""
 
-    #find_water_polygon(path)
+
 
     #folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images"
     #folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173"
@@ -455,19 +528,7 @@ def main():
     #print("read data:", datetime.now() - start)
     #data, _ = load_geotiff(
     #    r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\HX-13173_112_002_5547.tif")
-    increment = 30
-    start = datetime.now()
-    mask_cuda = create_water_mask_hsl_cuda(arr, increment)
-    print("cuda time:", datetime.now() - start)
 
-    start = datetime.now()
-    mask_hsl= create_water_mask_hsl_numba(arr, increment)
-    print("cached CPU time:", datetime.now() - start)
-
-
-    #run_all_images(folder, increment)
-
-    #hsl_rgb_comparison(data, increment )
 
 
 
