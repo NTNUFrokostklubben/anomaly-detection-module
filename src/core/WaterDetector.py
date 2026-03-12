@@ -130,26 +130,25 @@ def clean_water_mask(mask_array, max_size=500000) -> ndarray[tuple[bool]]:
 
 
 # --- Main ---
-def main():
+# def main():
 
-    """
-    Function for testing water mask creation
-    :return:
-    """
-    gdal.DontUseExceptions()
-    #data, _ = load_geotiff(r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_042_14863-pink.tif")
-    data, _ = load_geotiff(
-        r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_001_14822.tif")
-    mask = create_water_mask(data, 30)
+#     """
+#     Function for testing water mask creation
+#     :return:
+#     """
+#     gdal.DontUseExceptions()
+#     #data, _ = load_geotiff(r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_042_14863-pink.tif")
+#     data, _ = load_geotiff(
+#         r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_001_14822.tif")
+#     mask = create_water_mask(data, 30)
 
-    mask = clean_water_mask(mask)
-    r = np.where(mask, data[0], 255)
-    g = np.where(mask, data[1], 255)
-    b = np.where(mask, data[2], 255)
-    img = np.dstack((r, g, b))
-    rows, cols = np.nonzero(mask)
-    cropped = img[ rows.min():rows.max() + 1, cols.min():cols.max() + 1, : ]
+#     mask = clean_water_mask(mask)
+#     r = np.where(mask, data[0], 255)
+#     g = np.where(mask, data[1], 255)
+#     b = np.where(mask, data[2], 255)
+#     img = np.dstack((r, g, b))
+#     rows, cols = np.nonzero(mask)
+#     cropped = img[ rows.min():rows.max() + 1, cols.min():cols.max() + 1, : ]
 
-    plt.imshow(cropped)
-    plt.show()
-
+#     plt.imshow(cropped)
+#     plt.show()
