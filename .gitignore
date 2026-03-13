@@ -1,6 +1,8 @@
 # IDE-specific files
 .idea/
 .vscode/
+.run/
+# For JetBrains IDEs, contains run configurations
 
 # Byte-compiled / optimized / "build" files
 __pycache__/
