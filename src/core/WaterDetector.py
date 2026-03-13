@@ -2,6 +2,8 @@ import colorsys
 import math
 import imagecodecs
 from datetime import datetime
+
+import rasterio
 import tifffile as tf
 from pathlib import Path
 from typing import Any
@@ -13,6 +15,8 @@ import numpy as np
 
 from numpy import dtype, ndarray
 from osgeo import gdal
+from shapely.affinity import affine_transform
+from shapely.geometry.point import Point
 from skimage import morphology
 from scipy import ndimage
 import matplotlib.pyplot as plt
@@ -20,8 +24,8 @@ import geopandas as gpd
 from shapely.ops import unary_union
 
 from affine import Affine as af
-from rasterio.features import geometry_mask
-from shapely.geometry import box
+from rasterio.features import geometry_mask, rasterize
+from shapely.geometry import box, Polygon as ShapelyPolygon
 
 
 
@@ -35,6 +39,22 @@ def load_geotiff_dataset(path) ->  gdal.Dataset:
     #data = ds.ReadAsArray()  # shape: (bands, H, W)
     print("fin read")
     return ds
+
+
+def __find_image_row(gdf, img_name):
+    """
+    Temporary function until utils are pushed to develop
+    :param gdf:
+    :param img_num:
+    :param strip_num:
+    :return:
+    """
+    matches = gdf[gdf["bildefilRGB"] == img_name]
+
+    if matches.empty:
+        raise ValueError(f"Image with name {img_name} not found")
+
+    return matches.iloc[0]
 
 def smoothing(mask: np.ndarray, increment, sensitivity):
     """
@@ -52,22 +72,6 @@ def smoothing(mask: np.ndarray, increment, sensitivity):
                 mask[ y:y + increment, x:x + increment].fill(False)
 
     return mask
-
-
-def __find_image_row(gdf, img_name):
-    """
-    Temporary function until utils are pushed to develop
-    :param gdf:
-    :param img_num:
-    :param strip_num:
-    :return:
-    """
-    matches = gdf[gdf["bildefilRGB"] == img_name]
-
-    if matches.empty:
-        raise ValueError(f"Image with name {img_name} not found")
-
-    return matches.iloc[0]
 
 @njit(parallel=True,cache=True)
 def create_water_mask_hsl_numba(data, increment):
@@ -427,6 +431,8 @@ def hsl_rgb_comparison(data, increment):
 def find_water_polygon(gpkg_path: str, sosi_path: str, img_name: str, ds: gdal.Dataset, img_data: np.ndarray):
     """
 
+    :param img_data:
+    :param ds:
     :param gpkg_path:
     :param sosi_path:
     :param img_name:
@@ -434,58 +440,43 @@ def find_water_polygon(gpkg_path: str, sosi_path: str, img_name: str, ds: gdal.D
     """
     gdf = gpd.read_file(gpkg_path, layer="polygons")
     sosidf = gpd.read_file(sosi_path, layer="polygons")
+    raster_crs = ds.GetProjection()
+    if not raster_crs:
+        raise RuntimeError("Raster has no CRS; can't align vectors.")
+    gdf = gdf.to_crs(raster_crs)
+    sosidf = sosidf.to_crs(raster_crs)
 
-    row = __find_image_row(sosidf,img_name)
-
+    with rasterio.open(ds.GetDescription()) as src:
+        raster_crs = src.crs
+        affine = src.transform
+        width = src.width
+        height = src.height
 
     gt = ds.GetGeoTransform()
-    width = ds.RasterXSize
-    height = ds.RasterYSize
-    print(gt)
-    ds = None
-    affine = af.from_gdal(*gt)
+
+    print("Raster CRS:", raster_crs)
+    print("GDF CRS after reproject:", gdf.crs)
+    print("SOSI CRS after reproject:", sosidf.crs)
+    print("GeoTransform:", gt)
+    print("Affine:\n", affine)
+
+    row = __find_image_row(sosidf,img_name)
     overlap = gdf['geometry'].intersects(row['geometry'])
     merged = unary_union(gdf[overlap]['geometry'])
+
     mask = geometry_mask(
         [merged],
         transform=affine,
         invert=True,
         out_shape=(height, width)
     )
-    img_bounds = box(
-        gt[0],  # left
-        gt[3] + height * gt[5],  # bottom
-        gt[0] + width * gt[1],  # right
-        gt[3]  # top
-    )
 
-    h, w = height, width
 
-    corners = np.array([
-        [0, 0],
-        [w, 0],
-        [w, h],
-        [0, h]
-    ])
-
-    # Transform pixel corners to geo coordinates
-    geo_corners = np.array([
-        [gt[0] + c[0] * gt[1] + c[1] * gt[2],
-         gt[3] + c[0] * gt[4] + c[1] * gt[5]]
-        for c in corners
-    ])
-
-    print("Image geo corners:")
-    for i, (px, geo) in enumerate(zip(corners, geo_corners)):
-        print(f"  pixel {px} -> geo {geo}")
-
-    print(f"\nTrue geo bounds:")
-    print(f"  X: {geo_corners[:, 0].min():.2f} to {geo_corners[:, 0].max():.2f}")
-    print(f"  Y: {geo_corners[:, 1].min():.2f} to {geo_corners[:, 1].max():.2f}")
     masked_img = img_data * mask[np.newaxis, ...]
     masked_img = np.ascontiguousarray(masked_img.transpose(1, 2, 0))
     plt.imshow(masked_img)
     plt.show()
+
 
 
 def main():
@@ -501,7 +492,9 @@ def main():
     img_arr = tf.imread(
         r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_047_14868.tif",
         maxworkers=8)
+    print(img_arr.shape)
     img_arr = np.ascontiguousarray(img_arr.transpose(2, 0, 1))
+    print(img_arr.shape)
     ds = load_geotiff_dataset(
         r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\HX-14365_073_047_14868.tif")
     img_name = "HX-14365_073_047_14868.tif"

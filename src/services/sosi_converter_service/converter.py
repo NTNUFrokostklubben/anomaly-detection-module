@@ -25,8 +25,6 @@ def normalize_sosi_encoding(input_path: Path, output_path: Path):
         print("Could not detect encoding — assuming UTF-8")
         encoding = "utf-8"
 
-    print(f"Detected encoding: {encoding} (confidence: {detected['confidence']})")
-
     # Decode safely
     try:
         text = raw.decode(encoding, errors="ignore")
