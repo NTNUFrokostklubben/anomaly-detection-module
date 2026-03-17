@@ -3,7 +3,7 @@ from utils.find_overlap import find_image_path
 from pathlib import Path
 import geopandas
 
-from core import WaterDetector
+from core import water_detector
 
 
 # Start analysis
