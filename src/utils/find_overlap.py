@@ -29,21 +29,6 @@ def find_image_row(gdf: gpd.GeoDataFrame, img_num: int, strip_num: int):
     
     return row
 
-def find_image_path(gdf: gpd.GeoDataFrame, img_num, strip_num) -> str:
-    """
-    Find the file path for a given image number and strip number from the GeoPackage
-
-    Args:
-        gdf (GeoDataFrame): GeoDataFrame containing the image metadata
-        img_num (int): image number to find
-        strip_num (int): strip number to find
-    Returns:
-        file path for the image
-    """
-    row = find_image_row(gdf, img_num, strip_num)
-    
-    return row["bildefilRGB"]    
-
 def find_image_from_gpkg(gdf: gpd.GeoDataFrame, img_num: int, strip_num: int) -> tuple[Polygon, int, int]:
     """
     Find the polygon for a given image number and strip number from the GeoPackage

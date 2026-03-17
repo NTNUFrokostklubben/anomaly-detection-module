@@ -1,6 +1,6 @@
 from pathlib import Path
 import geopandas as gpd
-from services.sosi_converter_service import convert_sosi_to_gpkg, convert_sosi_to_geojson
+from services.sosi_converter_service import convert_sosi_to_gpkg
 
 output_file = Path(__file__).parent.parent.parent /"tests" / "testdata" / "output.sos"
 
