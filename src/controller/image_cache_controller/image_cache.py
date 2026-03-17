@@ -1,51 +1,61 @@
 from osgeo import gdal
 import numpy as np
 from pathlib import Path
-from collections import OrderedDict
 
 
 class ImageCache:
+    """
+    Singleton image cache that keeps up to 2 images.
+    Oldest image is removed when capacity is exceeded.
+    """
+    _instance = None
+
+    def __new__(cls, max_size: int = 2):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
 
     def __init__(self, max_size: int = 2):
-        self.max_size = max_size
-        self._cache: OrderedDict[Path, np.ndarray] = OrderedDict()
+        if self._initialized:
+            return
 
+        self.max_size = max_size
+        self._cache = {}
+        self._order = []  # track insertion order
+        self._initialized = True
 
     def get(self, img_path: Path) -> np.ndarray:
         """
-        Get image as numpy array, using cache if available.
-
+        Get an image from the cache.
         Args:
-            img_path (Path): Path to image
+            img_path (Path): Path to the image.
 
         Returns:
-            np.ndarray: Image array
+            Array of the image.
         """
+        img_path = img_path.resolve()
 
-        # Cache hit
+        # When img_path is in the cache
         if img_path in self._cache:
-            # Move to end (marks as most recently used)
-            self._cache.move_to_end(img_path)
             return self._cache[img_path]
 
-        # Cache miss → load image
+        # When img_path is NOT in the cache
         ds = gdal.Open(str(img_path))
         if ds is None:
             raise ValueError(f"Could not open image: {img_path}")
-
         arr = ds.ReadAsArray()
 
-        # Ensure 3D shape (C, H, W)
         if arr.ndim == 2:
             arr = arr[np.newaxis, :, :]
 
-        # Enforce cache size
-        if len(self._cache) >= self.max_size:
-            # popitem(last=False) removes oldest entry
-            self._cache.popitem(last=False)
+        # remove oldest
+        if len(self._order) >= self.max_size:
+            oldest = self._order.pop(0)
+            del self._cache[oldest]
 
-        # Store in cache
         self._cache[img_path] = arr
+        self._order.append(img_path)
 
         return arr
 
