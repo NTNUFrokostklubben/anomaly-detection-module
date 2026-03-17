@@ -1,46 +1,13 @@
 from core.color_diff import check_difference_two_images
 from pathlib import Path
 import time
-from osgeo import gdal
-import numpy as np
+from controller.image_cache_controller import ImageCache
 
-_image_cache = {}
 
-def get_ds_array_sliding(img_path: Path) -> np.ndarray:
-    """
-    Get the array for an image, cached in memory.
-    Only keeps up to 2 images in cache at a time.
-
-    Args:
-        img_path (Path): path to the image file
-
-    Returns:
-        np.ndarray: array representation of the image
-    """
-    global _image_cache
-
-    if img_path in _image_cache:
-        return _image_cache[img_path]
-
-    # Read the image
-    ds = gdal.Open(str(img_path))
-    arr = ds.ReadAsArray()
-    if arr.ndim == 2:  # make it 3D for consistency
-        arr = arr[np.newaxis, :, :]
-
-    # Keep only last 2 images in cache
-    if len(_image_cache) >= 2:
-        # remove the oldest item
-        oldest = next(iter(_image_cache))
-        del _image_cache[oldest]
-
-    _image_cache[img_path] = arr
-    return arr
-
-def load_image_array(img1_path, img2_path):
+def load_image_array(img1_path, img2_path, cache):
     t0 = time.perf_counter()
-    arr1 = get_ds_array_sliding(img1_path)
-    arr2 = get_ds_array_sliding(img2_path)
+    arr1 = cache.get(img1_path)
+    arr2 = cache.get(img2_path)
     t_load = time.perf_counter() - t0
     return arr1, arr2, t_load
 
@@ -73,6 +40,7 @@ def start_anomaly_analysis(gdf, image_folder_path: Path):
     image_count = len(gdf)
 
     t0 = time.perf_counter()
+    cache = ImageCache(max_size=2)
     for i in range(image_count - 1):
         img1_path = image_folder_path / gdf.iloc[i]["bildefilRGB"]
         img2_path = image_folder_path / gdf.iloc[i + 1]["bildefilRGB"]
@@ -80,7 +48,7 @@ def start_anomaly_analysis(gdf, image_folder_path: Path):
         if not img1_path.exists() or not img2_path.exists():
             return
 
-        arr1, arr2, t_load = load_image_array(img1_path, img2_path)
+        arr1, arr2, t_load = load_image_array(img1_path, img2_path, cache)
 
         print("------------------------------------------")
         print(f"Comparing image {gdf.iloc[i]['bildenummer']} and image {gdf.iloc[i + 1]['bildenummer']}")
@@ -88,6 +56,7 @@ def start_anomaly_analysis(gdf, image_folder_path: Path):
 
         start_color_difference_analysis(gdf, i, arr1, arr2)
         start_water_detection_analysis()
+        print("\n")
 
 
     print("Overall time:", time.perf_counter() - t0)
