@@ -1,5 +1,9 @@
 
 import math
+from os import listdir
+from os.path import isfile, join
+from pathlib import Path
+
 import geopandas as gp
 from datetime import datetime
 import cv2
@@ -46,16 +50,16 @@ def __find_image_row(gdf: gp.GeoDataFrame , img_name: str):
 
 
 @njit(parallel=True,cache=True)
-def create_water_mask_hsl_numba(data: np.ndarray, increment: int) -> np.ndarray[tuple[int, int]]:
+def create_water_mask_hsl_numba(data: np.ndarray[tuple[int, int, int]], increment: int) -> np.ndarray[tuple[int, int]]:
     """
         This function creates a water mask using a jumping block algorith. uses HSL to find water instead of RGB.
         Because of Numba optimization, it is not possible to generalize this function or even reduce the complexity.
-        :param data: ndarray -  the image to create a water mask on
+        :param data:  the image to create a water mask on must in the shape (H,W) or (H,W,bands)
         :param increment: int - size of the block squared, not total pixels.
         :return: The water mask.
     """
-    y_shape = data.shape[1]
-    x_shape = data.shape[2]
+    y_shape = data.shape[0]
+    x_shape = data.shape[1]
     mask = np.zeros((y_shape, x_shape), dtype=np.bool_)
 
     y_blocks = (y_shape + increment - 1) // increment
@@ -126,6 +130,8 @@ def create_water_mask_hsl_numba(data: np.ndarray, increment: int) -> np.ndarray[
                 previous = False
 
     return mask
+
+
 
 
 
@@ -227,19 +233,18 @@ def detect_holes(mask: ndarray[tuple[bool]]) -> ndarray[tuple[bool]]:
 
 
 
-def find_water_polygon_mask(gpkg_path: str, sosi_path: str, img_name: str, ds: gdal.Dataset) -> np.ndarray:
+def find_water_polygon_mask(gdf: gp.GeoDataFrame, sosidf: gp.GeoDataFrame, img_name: str, ds: gdal.Dataset) -> np.ndarray:
     """
     Builds a water mask for the given image by aligning water contours from a GeoPackage
     to the raster extent, correcting for Y-axis flip in the SOSI boundary polygon.
 
-    :param gpkg_path: Path to GeoPackage containing water contour polygons
-    :param sosi_path: Path to SOSI file containing image boundary polygons
+    :param sosidf:
+    :param gdf: Path to GeoPackage containing water contour polygons
     :param img_name: Image name used to look up the corresponding SOSI boundary row
     :param ds: GDAL dataset of the raster image
     :return: Boolean mask array of shape (height, width), True where water is present
     """
-    gdf: gp.GeoDataFrame = gpd.read_file(gpkg_path, layer="polygons")
-    sosidf: gp.GeoDataFrame = gpd.read_file(sosi_path, layer="polygons")
+
 
     raster_crs = ds.GetProjection()
     if not raster_crs:
@@ -341,10 +346,53 @@ def refine_mask_hsl(img_data: ndarray, polygon_mask: ndarray[tuple[int, int]], i
     # Run HSL water detection on the full image
     hsl_mask = create_water_mask_hsl_numba(img_data, increment)
 
+    disagreement = polygon_mask.astype(np.bool_) ^ hsl_mask.astype(np.bool_)
+    disagreement_count = np.sum(disagreement)
+    disagreement_ratio = disagreement_count / polygon_mask.size
+    print(disagreement_ratio)
     # Only keep pixels where both masks agree
     refined = (polygon_mask.astype(np.bool_)) & hsl_mask
 
     return refined.astype(np.uint8)
+
+def run_all_images(folder, gpkg, sosipkg, increment):
+    mypath = folder
+    gdf: gp.GeoDataFrame = gpd.read_file(gpkg, layer="polygons")
+    sosidf: gp.GeoDataFrame = gpd.read_file(sosipkg, layer="polygons")
+
+    # mypath = r"D:\HX-14365_NordmøreGSD10\RGB"
+    onlyfiles = [f for f in listdir(mypath) if isfile(join(mypath, f)) and Path(f).suffix==".tif" ]
+    for idx in range(len(onlyfiles)):
+        ds   = load_geotiff_dataset(path=mypath + "\\" + onlyfiles[idx])
+        img_data = tf.imread(mypath + "\\" + onlyfiles[idx], maxworkers=8)
+        # dataset.insert(idx, gdal.Open(mypath + "\\" + onlyfiles[idx])
+
+        start = datetime.now()
+        polygon_mask = clean_water_mask(find_water_polygon_mask(gdf, sosidf, onlyfiles[idx], ds ), increment)
+        end = datetime.now()
+        time = end - start
+        print("mask creation time polygon:" + str(time))
+
+        start = datetime.now()
+        hsl_mask = clean_water_mask(create_water_mask_hsl_numba(img_data, increment), increment)
+        end = datetime.now()
+        time = end - start
+        print("mask creation time cuda:" + str(time))
+
+        discrepancy = hsl_mask & ~polygon_mask  # pixels HSL sees but RGB doesn't
+        hsl_pixels = np.sum(hsl_mask)
+        polygon_pixels = np.sum(polygon_mask)
+        if hsl_pixels != 0 and polygon_pixels != 0:
+            discrepancy_ratio = np.sum(discrepancy) / hsl_pixels
+        elif (hsl_pixels == 0 and polygon_pixels != 0) or (polygon_pixels == 0 and hsl_pixels != 0):
+            discrepancy_ratio = 1
+        else:
+            print("error on image" + onlyfiles[idx])
+            discrepancy_ratio = 0
+
+        print("image " + onlyfiles[idx])
+        print(discrepancy_ratio)
+        print(discrepancy_ratio > 0.5)
 
 
 
@@ -357,19 +405,29 @@ def main():
     gdal.DontUseExceptions()
     path_gpkq = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\Vann_22.gpkg"
     path_sosi = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\HX-14365_Vertikalbilde.gpkg"
+    #path_sosi = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\HX-13173_Vertikalbilde.gpkg"
     #img_name = "HX-14365_073_014_14835.tif"
-    img_name = "HX-14365_073_047_14868.tif"
+    #img_name = "HX-14365_073_047_14868.tif"
     #img_name = "HX-14365_073_001_14822.tif"
-    img_arr = tf.imread(
-        r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\" + img_name,
-        maxworkers=8)
-    print(img_arr.shape)
-    img_arr = np.ascontiguousarray(img_arr.transpose(2, 0, 1))
-    print(img_arr.shape)
-    ds = load_geotiff_dataset(
-        r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\"+ img_name)
+    #img_name = "HX-13173_112_005_5550.tif"
+    folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images"
+    run_all_images(folder, path_gpkq, path_sosi, 30)
 
-    before = datetime.now()
+
+    #img_arr = tf.imread(
+     #   r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\\" + img_name,
+    #    maxworkers=8)
+    #img_arr = tf.imread(
+     #     r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\" + img_name,
+      #   maxworkers=8)
+
+
+    # img_arr = np.ascontiguousarray(img_arr.transpose(2, 0, 1))
+    #ds = load_geotiff_dataset(
+    #    r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\\"+ img_name)
+    #ds = load_geotiff_dataset(
+    # r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\"+ img_name)
+    """before = datetime.now()
     mask = find_water_polygon_mask(path_gpkq, path_sosi, img_name, ds)
     mask = clean_water_mask(mask)
     rows, cols = np.nonzero(mask)
@@ -383,7 +441,7 @@ def main():
     masked_img = cropped_img * mask[np.newaxis, ...]
     masked_img = np.ascontiguousarray(masked_img.transpose(1, 2, 0))
     plt.imshow(masked_img)
-    plt.show()
+    plt.show()"""
 
 
 
