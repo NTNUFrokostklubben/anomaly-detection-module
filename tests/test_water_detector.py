@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 
 import core.water_detector as wd
 
@@ -12,7 +11,7 @@ import numpy as np
 from osgeo import gdal
 import geopandas as gpd
 
-def test_run_all_images():
+def run_all_images():
     increment = 30
     contour_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\Vann_22.gpkg"
     sosi_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\HX-14365_Vertikalbilde.gpkg"
@@ -56,7 +55,7 @@ def test_run_all_images():
 
 
 
-def test_main():
+def main():
     """
     Function for testing water mask creation
     :return:
