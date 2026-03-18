@@ -49,4 +49,6 @@ def read_tiff_fast(path) -> np.ndarray[tuple[int, int, int]]:
     :param path: path to the tiff image.
     :return: the image as array in shape(bands, H, W).
     """
-    return tf.imread(path, maxworkers=8)
+    img = tf.imread(path, maxworkers=8)
+    return np.transpose(img[:, :, :3], (2, 0, 1))
+
