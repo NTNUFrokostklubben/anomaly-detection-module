@@ -13,8 +13,8 @@
 version: 1
 metadata:
   content_hash:
-    win-64: 2106e8bd2ab1fd762ef283999be7aaa5656ffad899113030c7318a51ca11b6ec
-    linux-64: 42daf26114437fd8dd23caef0513feebc9ac7762762f27dd558849dcbd029548
+    win-64: 470a1c8e2a3d90f8548a8c562c024228b8b83c9cc051bb9664e9d8d4eaae2649
+    linux-64: 75c6fcd04c97479d5be0b1c1ce2c467a30a86ee6a2f6893c5ede72eedef86eb4
   channels:
   - url: defaults
     used_env_vars: []
@@ -839,6 +839,30 @@ package:
   hash:
     md5: a591c4826b93f12b76c9c6a50186f119
     sha256: e1d5e521e007549201f38f4e067d601229b97928aadeba6084a5d942c36edf92
+  category: main
+  optional: false
+- name: chardet
+  version: 5.2.0
+  manager: conda
+  platform: linux-64
+  dependencies:
+    python: '>=3.12,<3.13.0a0'
+  url: https://repo.anaconda.com/pkgs/main/linux-64/chardet-5.2.0-py312h06a4308_0.conda
+  hash:
+    md5: 153de328588ec7f729d287c983ff0933
+    sha256: 4456bad408e42c4bf435c8d805452d65100807e1562025ff437885fdbcf1143c
+  category: main
+  optional: false
+- name: chardet
+  version: 5.2.0
+  manager: conda
+  platform: win-64
+  dependencies:
+    python: '>=3.12,<3.13.0a0'
+  url: https://repo.anaconda.com/pkgs/main/win-64/chardet-5.2.0-py312haa95532_0.conda
+  hash:
+    md5: a7f6818648a60ba91ec2723427402969
+    sha256: a240609bc0ae67b344799f400c33b4c18494fafc904ef82c40c77e7b8e85072f
   category: main
   optional: false
 - name: charls
