@@ -43,7 +43,17 @@ python .\src\main.py --sosi-input "C:path/to/sosi/file" --image-path "C:path/to/
 
 ### Build
 
-TODO: Add build instructions.
+For this application to work, the sosi fyba driver bundle is required. This can be fetched using the script under
+```shell
+.\scripts\fetch_gdal_bundle_win.ps1
+```
+
+Once the env has been activated and bundle has been fetched, build for the platform you are currently on
+```shell
+pyinstaller server.spec
+```
+The `server.spec` file should handle linux/windows lib linking automatically. This does NOT work for linux currently.
+Once the build is finished, it should be present under dist/server in the root of the project.
 
 ## Expanding
 
