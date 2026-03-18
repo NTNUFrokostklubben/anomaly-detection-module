@@ -11,13 +11,19 @@ dependencies = [
     "geopandas>=0.14",
     "shapely>=2.0",
     "scikit-image>=0.22",
-    "pytest>=8.0",
-    "chardet>=5.0"
+    "chardet>=5.0",
+    "numba>=0.59",
+    "imagecodecs>=2026.1",
+    "tifffile>=2026.1",
+    "rasterio>=1.3",
+    "opencv-python>=4.9",
+    "affine>=2.4",
+    "gdal"
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest"
+    "pytest>=8.0"
 ]
 
 [tool.setuptools]

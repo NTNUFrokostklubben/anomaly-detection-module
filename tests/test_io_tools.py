@@ -6,4 +6,4 @@ def test_tifffile_uses_turbojpeg():
     Ensures that tifffile uses turbojpeg for fast tiff file reading.
     :return:
     """
-    assert imagecodecs.turbojpeg_version() is not None
+    assert imagecodecs.jpeg8_version() is not None
