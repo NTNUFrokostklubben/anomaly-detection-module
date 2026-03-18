@@ -29,6 +29,24 @@ def find_image_row(gdf: gpd.GeoDataFrame, img_num: int, strip_num: int):
     
     return row
 
+
+def find_image_row_img_name(gdf: gpd.GeoDataFrame , img_name: str):
+    """
+    Temporary function until utils are pushed to develop
+
+    :param gdf: geo dataframe that contains rows for images
+    :param img_name: the image name for the image.
+    :return: the row that matches the image name.
+    """
+    matches = gdf[gdf["bildefilRGB"] == img_name]
+
+    if matches.empty:
+        raise ValueError(f"Image with name {img_name} not found")
+
+    return matches.iloc[0]
+
+
+
 def find_image_from_gpkg(gdf: gpd.GeoDataFrame, img_num: int, strip_num: int) -> tuple[Polygon, int, int]:
     """
     Find the polygon for a given image number and strip number from the GeoPackage

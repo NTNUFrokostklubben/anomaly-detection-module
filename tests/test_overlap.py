@@ -2,7 +2,7 @@ import pytest
 from pathlib import Path
 
 from utils.find_overlap import get_overlap_pixel_images
-from utils.load_sosi_content import get_gdf_content
+from utils.io_tools import get_gdf_content
 
 
 gpgk_path = Path(__file__).parent.parent / "tests" / "testdata" / "test_file_short.gpkg"
