@@ -19,9 +19,15 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install GDAL system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgdal-dev gdal-bin
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install gdal==$(gdal-config --version)
           pip install -e ".[dev]"
 
       - name: Run tests
