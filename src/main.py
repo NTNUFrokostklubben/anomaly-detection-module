@@ -1,4 +1,3 @@
-
 from utils.load_sosi_content import get_gdf_content
 from core.pipeline_anomaly_detection import start_anomaly_analysis
 from pathlib import Path

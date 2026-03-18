@@ -241,9 +241,9 @@ def _hsl_compute_blocks_kernel(data: np.ndarray[tuple[int, int, int]], mask: np.
     Helper function for computing the blocks in the jumping block algorithm for CUDA processing of the water mask.
 
     :param data: the image array
-    :param mask:
-    :param increment:
-    :return:
+    :param mask: The mask to compute the blocks in. this is the return value.
+    :param increment: the amount the block jumps. Not max pixels, the size of the square is increment squared.
+
     """
     bx, by = cuda.grid(2)
     y_shape = data.shape[1]
@@ -374,7 +374,7 @@ def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataF
     affine = Affine.from_gdal(*gt)
     inv_affine = ~affine
 
-    row = __find_image_row(sosi_df, img_name)
+    row = _find_image_row(sosi_df, img_name)
     overlap = contour_gdf['geometry'].intersects(row['geometry'])
 
     sosi_corners_flat = [
@@ -488,9 +488,30 @@ def find_disagreement_ratio(mask: ndarray[tuple[bool, bool]], other_mask: ndarra
     :param other_mask: the other binary mask.
     :return: the disagreement ratio normalized to [0, 1]
     """
+    mask, other_mask = crop_arrays_binary(mask, other_mask)
+
     disagreement = mask.astype(np.bool_) ^ other_mask.astype(np.bool_)
     disagreement_count = np.sum(disagreement)
     return disagreement_count / mask.size
 
+def crop_arrays_binary(array: ndarray, other_array: ndarray) -> tuple[ndarray, ndarray]:
+    """
+    Crop arrays based on np.nonzero. Expects a bool or binary array. Other array is cropped based on first array.
+    This ensures there's no issue with difference in sizes for the two. For mask + image cropping, image must be in
+    shape(bands, H, W), transpose your array if it is not.
 
+    :param array: the first array to crop, this becomes the standard for the second array.
+    :param other_array: the second array to crop so that it matches first array in size.
+    :return: the two arrays as a tuple, with other_array last.
+    """
+    rows, cols = np.nonzero(array)
+    r_min, r_max = rows.min(), rows.max() + 1
+    c_min, c_max = cols.min(), cols.max() + 1
+    array = array[r_min:r_max, c_min:c_max]
+    if other_array.ndim == 3:
+        other_array = other_array[:, r_min:r_max, c_min:c_max]
+    else:
+        other_array = other_array[r_min:r_max, c_min:c_max]
+
+    return array, other_array
 

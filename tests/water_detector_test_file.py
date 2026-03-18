@@ -39,9 +39,7 @@ def run_all_images():
         time = end - start
         print("mask creation time polygon:" + str(time))
 
-        rows, cols = np.nonzero(polygon_mask)
-        polygon_mask = polygon_mask[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
-        img_data = img_data[:, rows.min():rows.max() + 1, cols.min():cols.max() + 1]
+        polygon_mask, img_data = wd.crop_arrays_binary(polygon_mask, img_data)
 
         start = datetime.now()
         hsl_mask = wd.create_water_mask_hsl(img_data, increment, polygon_mask)
