@@ -13,17 +13,25 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Install Miniforge
+        uses: conda-incubator/setup-miniconda@v3
         with:
-          python-version: "3.11"
+          miniforge-version: latest
+          activate-environment: base
+          auto-update-conda: true
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+      - name: Install conda-lock
+        shell: bash -l {0}
+        run: conda install -n base -c conda-forge conda-lock
+
+      - name: Create build environment
+        shell: bash -l {0}
+        run: conda-lock install --prefix ./env
+
+      - name: Install local package
+        shell: bash -l {0}
+        run: conda run --prefix ./env pip install -e .
 
       - name: Run tests
-        run: |
-          pytest
+        shell: bash -l {0}
+        run: conda run --prefix ./env pytest
