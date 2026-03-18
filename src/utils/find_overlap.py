@@ -32,11 +32,14 @@ def find_image_row(gdf: gpd.GeoDataFrame, img_num: int, strip_num: int):
 
 def find_image_row_img_name(gdf: gpd.GeoDataFrame , img_name: str):
     """
-    Temporary function until utils are pushed to develop
+    Finds an image in a GeoDataFrame from a converted sosi file based on  image name
 
-    :param gdf: geo dataframe that contains rows for images
-    :param img_name: the image name for the image.
-    :return: the row that matches the image name.
+    Args:
+        gdf: geo dataframe that contains rows for images
+        img_name: the image name for the image.
+
+    Returns:
+        the row that matches the image name.
     """
     matches = gdf[gdf["bildefilRGB"] == img_name]
 
