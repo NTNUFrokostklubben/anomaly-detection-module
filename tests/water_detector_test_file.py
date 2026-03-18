@@ -12,6 +12,11 @@ from osgeo import gdal
 import geopandas as gpd
 
 def run_all_images():
+    """
+    Function for running all images in a folder, left here for manual testing and if someone wants to try themselves.
+    Not supposed to be run as a test with pytest.
+    :return:
+    """
     increment = 30
     contour_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\Vann_22.gpkg"
     sosi_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\HX-14365_Vertikalbilde.gpkg"
@@ -57,7 +62,7 @@ def run_all_images():
 
 def main():
     """
-    Function for testing water mask creation
+    Function for testing water mask creation, left here incase anyone else wants to test how water mask creation works.
     :return:
     """
 

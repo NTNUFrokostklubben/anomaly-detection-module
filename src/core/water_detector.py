@@ -42,6 +42,7 @@ CLEAN_MASK_MAX_HOLE_SIZE: int = 300_000
 def load_geotiff_dataset(path: str) ->  gdal.Dataset:
     """
     Load geotiff image into memory. Temporary function
+
     :param path: path to the tiff image
     :return: the image as array in shape(bands, H, W) and the gdal dataset.
     """
@@ -50,9 +51,10 @@ def load_geotiff_dataset(path: str) ->  gdal.Dataset:
     return ds
 
 
-def __find_image_row(gdf: gp.GeoDataFrame , img_name: str):
+def _find_image_row(gdf: gp.GeoDataFrame , img_name: str):
     """
     Temporary function until utils are pushed to develop
+
     :param gdf: geo dataframe that contains rows for images
     :param img_name: the image name for the image.
     :return: the row that matches the image name.
@@ -70,6 +72,7 @@ def __find_image_row(gdf: gp.GeoDataFrame , img_name: str):
 def _block_has_mask(polygon_mask: np.ndarray, y_start: int, y_end: int, x_start: int, x_end: int) -> bool:
     """
     Checks whether the given block contains at least one pixel inside the polygon mask.
+
     :param polygon_mask: 2D boolean array where True marks pixels inside the polygon.
     :param y_start: first row index of the block (inclusive).
     :param y_end: last row index of the block (exclusive).
@@ -88,6 +91,7 @@ def _block_has_mask(polygon_mask: np.ndarray, y_start: int, y_end: int, x_start:
 def _block_mean_rgb(data: np.ndarray, polygon_mask: np.ndarray, y_start: int, y_end: int, x_start: int, x_end: int) -> tuple:
     """
     Computes the mean normalised RGB values for all masked pixels within the block.
+
     :param data: image array of shape (3, H, W) with uint8 pixel values.
     :param polygon_mask: 2D boolean array where True marks pixels inside the polygon.
     :param y_start: first row index of the block (inclusive).
@@ -117,6 +121,7 @@ def _block_mean_rgb(data: np.ndarray, polygon_mask: np.ndarray, y_start: int, y_
 def _rgb_to_hue(r_mean: float, g_mean: float, b_mean: float) -> tuple[float, float]:
     """
     Converts normalized RGB values to an HSL hue angle in degrees [0, 360) and chroma [0, 100].
+
     :param r_mean: normalized red channel value in [0.0, 1.0].
     :param g_mean: normalized green channel value in [0.0, 1.0].
     :param b_mean: normalized blue channel value in [0.0, 1.0].
@@ -140,6 +145,7 @@ def _find_coast_x(data: np.ndarray, polygon_mask: np.ndarray, y_start: int, y_en
     """
     Finds the x-coordinate of the first column in the block where blue dominates,
     indicating the coastline transition from land to water.
+
     :param data: image array of shape (3, H, W) with uint8 pixel values.
     :param polygon_mask: 2D boolean array where True marks pixels inside the polygon.
     :param y_start: first row index of the block (inclusive).
@@ -168,6 +174,7 @@ def _find_coast_x(data: np.ndarray, polygon_mask: np.ndarray, y_start: int, y_en
 def _fill_block(mask: np.ndarray, polygon_mask: np.ndarray, y_start: int, y_end: int, x_start: int, x_end: int) -> None:
     """
     Sets all polygon-masked pixels within the block to True in the output mask.
+
     :param mask: 2D boolean output array to write water pixels into.
     :param polygon_mask: 2D boolean array where True marks pixels inside the polygon.
     :param y_start: first row index of the block (inclusive).
@@ -186,6 +193,7 @@ def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int
     """
     Create a mask outlining the water on an image using a jumping block algorithm. Optionally allows for looking
      only within a constrained region of the full image.
+
     :param data: the image array
     :param increment: the amount the block should jump. Not max pixels, the size of the square is increment squared.
     :param constraint_region: the region to not run the algortithm in.
@@ -231,6 +239,7 @@ def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int
 def _hsl_compute_blocks_kernel(data: np.ndarray[tuple[int, int, int]], mask: np.ndarray[tuple[bool, bool]], increment: int):
     """
     Helper function for computing the blocks in the jumping block algorithm for CUDA processing of the water mask.
+
     :param data: the image array
     :param mask:
     :param increment:
@@ -288,6 +297,7 @@ def create_water_mask_hsl_cuda(data: ndarray[tuple[int, int, int]], increment: i
     """
     Computes the water mask in HSL using cuda cores, slower than CPU processing if processor is of similar quality as
      GPU.
+
     :param data: the image array
     :param increment: The size of the square to compute water detection on. Not total pixels.
     :return: the mask outlining water.
@@ -310,11 +320,11 @@ def create_water_mask_hsl_cuda(data: ndarray[tuple[int, int, int]], increment: i
 def clean_water_mask(mask_array: ndarray[tuple[int, int]], max_size=CLEAN_MASK_MAX_SPLOTCH_SIZE) -> ndarray[tuple[int, int]]:
     """
     Remove shadow splotches from a water mask ndarray.
+
     :param mask_array: ndarray as type bool or binary
     :param max_size: int - maximum size of the splotches to remove in pixels, default 500,000
 
-    Returns:
-        cleaned: ndarray (bool) - True where water, False elsewhere
+    :return: cleaned: ndarray (bool) - True where water, False elsewhere
     """
 
     cleaned = morphology.remove_small_objects(mask_array, max_size=max_size)
@@ -326,6 +336,7 @@ def clean_water_mask(mask_array: ndarray[tuple[int, int]], max_size=CLEAN_MASK_M
 def detect_holes(mask: ndarray[tuple[bool, bool]]) -> ndarray[tuple[int, int]]:
     """
     Detects holes in masks. Optimized for large images like tif.
+
     :param mask: the mask array to detect holes in.
     """
     max_size = CLEAN_MASK_MAX_HOLE_SIZE
@@ -409,6 +420,7 @@ def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataF
 def geo_to_pixel(x:float, y:float, inv_affine: Affine) -> list[Any]:
     """
     Turns geographical coordinates into pixel coordinates
+
     :param x: the x coordinate
     :param y: the y coordinate
     :param inv_affine: the inverted affine transformation matrix
@@ -431,6 +443,7 @@ def apply_homography(geom: Polygon | MultiPolygon, transform: np.ndarray, affine
     Applies a perspective homography to a Shapely geometry in geographic coordinates.
     Converts each vertex to pixel space, applies the transform, then converts back to
     geographic coordinates using the affine transformation.
+
     :param geom: the input geometry (Polygon or MultiPolygon) in geographic coordinates.
     :param transform: 3x3 perspective transformation matrix from cv2.getPerspectiveTransform.
     :param affine: affine transformation mapping pixel coordinates to geographic coordinates.
@@ -453,6 +466,7 @@ def refine_mask_hsl(img_data: ndarray, polygon_mask: ndarray[tuple[int, int]], i
     """
     Refines a polygon-based water mask using HSL-based water detection.
     Only keeps pixels where both the polygon mask and HSL detection agree.
+
     :param img_data: ndarray - image in shape (bands, H, W)
     :param polygon_mask: ndarray - binary mask from polygon, shape (H, W)
     :param increment: int - block size for HSL algorithm
@@ -469,6 +483,7 @@ def refine_mask_hsl(img_data: ndarray, polygon_mask: ndarray[tuple[int, int]], i
 def find_disagreement_ratio(mask: ndarray[tuple[bool, bool]], other_mask: ndarray[tuple[bool, bool]]) -> float:
     """
     Finds the amount of disagreement between two binary masks. The stricter of the two masks should be in other_mask.
+
     :param mask: The first binary mask
     :param other_mask: the other binary mask.
     :return: the disagreement ratio normalized to [0, 1]
