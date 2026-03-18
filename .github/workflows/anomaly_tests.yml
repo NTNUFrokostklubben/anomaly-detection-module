@@ -13,22 +13,28 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Install Miniforge
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: base
+          auto-update-conda: true
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install GDAL system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgdal-dev gdal-bin
+      - name: Install conda-lock
+        shell: bash -l {0}
+        run: conda install -n base -c conda-forge conda-lock
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install gdal==$(gdal-config --version)
-          pip install -e ".[dev]"
+      - name: Create build environment
+        shell: bash -l {0}
+        run: conda-lock install --prefix ./env
+
+      - name: Install local package
+        run: ./env/bin/python -m pip install -e .
 
       - name: Run tests
         run: |
