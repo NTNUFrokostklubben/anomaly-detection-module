@@ -20,11 +20,6 @@ jobs:
           activate-environment: base
           auto-update-conda: true
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
       - name: Install conda-lock
         shell: bash -l {0}
         run: conda install -n base -c conda-forge conda-lock
