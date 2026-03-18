@@ -7,8 +7,8 @@
     distribution API (curl only, no ORAS required). Verifies SHA256 and extracts.
 #>
 
-$Version = "1.0.0"
-$ExpectedSHA256 = "REPLACE_WITH_ACTUAL_SHA256"
+$Version = "1.1.0"
+$ExpectedSHA256 = "590F816B8FFD9FCCDFE1381526BA68149DECC83A74ED454C9B6D98D07DC3AF95"
 
 $ErrorActionPreference = "Stop"
 
