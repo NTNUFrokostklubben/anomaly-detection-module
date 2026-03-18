@@ -1,4 +1,4 @@
-
+import utils.find_overlap as fo
 import math
 from typing import Any
 
@@ -13,7 +13,7 @@ from scipy import ndimage
 from shapely.ops import unary_union
 from affine import Affine
 from rasterio.features import geometry_mask
-from shapely.geometry import Polygon, MultiPolygon
+from shapely import Polygon, MultiPolygon
 
 
 
@@ -36,35 +36,9 @@ CUDA_THREADS_PER_BLOCK: int = 16
 
 # Mask cleaning thresholds (pixels)
 CLEAN_MASK_MAX_SPLOTCH_SIZE: int = 1_000_000
-CLEAN_MASK_MAX_HOLE_SIZE: int = 300_000
+# The minimum size for a hole to survive clean up. Less than this is not relevant.
+MIN_HOLE_SIZE: int = 300_000
 
-
-def load_geotiff_dataset(path: str) ->  gdal.Dataset:
-    """
-    Load geotiff image into memory. Temporary function
-
-    :param path: path to the tiff image
-    :return: the image as array in shape(bands, H, W) and the gdal dataset.
-    """
-    ds = gdal.OpenEx(path)
-    print("fin read")
-    return ds
-
-
-def _find_image_row(gdf: gp.GeoDataFrame , img_name: str):
-    """
-    Temporary function until utils are pushed to develop
-
-    :param gdf: geo dataframe that contains rows for images
-    :param img_name: the image name for the image.
-    :return: the row that matches the image name.
-    """
-    matches = gdf[gdf["bildefilRGB"] == img_name]
-
-    if matches.empty:
-        raise ValueError(f"Image with name {img_name} not found")
-
-    return matches.iloc[0]
 
 
 
@@ -199,7 +173,7 @@ def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int
 
     :param data: the image array
     :param increment: the amount the block should jump. Not max pixels, the size of the square is increment squared.
-    :param constraint_region: the region to not run the algortithm in.
+    :param constraint_region: the region to not run the algorithm in.
     :return: a mask outlining water for the corresponding image.
     """
     y_shape = data.shape[1]
@@ -342,7 +316,7 @@ def detect_holes(mask: ndarray[tuple[bool, bool]]) -> ndarray[tuple[int, int]]:
 
     :param mask: the mask array to detect holes in.
     """
-    max_size = CLEAN_MASK_MAX_HOLE_SIZE
+    max_size = MIN_HOLE_SIZE
     filled_mask = ndimage.binary_fill_holes(mask)
     holes = filled_mask ^ mask
     cleaned = morphology.remove_small_objects(holes, max_size=max_size)
@@ -377,7 +351,7 @@ def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataF
     affine = Affine.from_gdal(*gt)
     inv_affine = ~affine
 
-    row = _find_image_row(sosi_df, img_name)
+    row = fo.find_image_row_img_name(sosi_df, img_name)
     overlap = contour_gdf['geometry'].intersects(row['geometry'])
 
     sosi_corners_flat = [
