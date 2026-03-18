@@ -29,8 +29,9 @@ jobs:
         run: conda-lock install --prefix ./env
 
       - name: Install local package
-        run: ./env/bin/python -m pip install -e .
+        shell: bash -l {0}
+        run: conda run --prefix ./env pip install -e .
 
       - name: Run tests
-        run: |
-          pytest
+        shell: bash -l {0}
+        run: conda run --prefix ./env pytest
