@@ -50,11 +50,12 @@ def start_anomaly_analysis(gdf, image_folder_path: Path):
 
     t0 = time.perf_counter()
     for i in range(image_count - 1):
+
         img1_path = image_folder_path / gdf.iloc[i]["bildefilRGB"]
         img2_path = image_folder_path / gdf.iloc[i + 1]["bildefilRGB"]
 
         if not img1_path.exists() or not img2_path.exists():
-            return
+            continue
 
         arr1, arr2, t_load = load_image_array(img1_path, img2_path)
 

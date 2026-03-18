@@ -9,7 +9,7 @@ def get_bundle_root() -> Path:
         the bundle root of the environment
     """
     project_root = Path(__file__).resolve().parents[3]
-    return project_root / "lib" / "gdal_bundle"
+    return project_root / "lib" / "bundle"
 
 def setup_gdal_environment():
     """
