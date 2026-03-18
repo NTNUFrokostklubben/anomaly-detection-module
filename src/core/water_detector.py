@@ -13,7 +13,7 @@ from scipy import ndimage
 from shapely.ops import unary_union
 from affine import Affine
 from rasterio.features import geometry_mask
-from shapely.geometry import Polygon, MultiPolygon
+from shapely import Polygon, MultiPolygon
 
 
 
