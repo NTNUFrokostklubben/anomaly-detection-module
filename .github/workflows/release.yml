@@ -106,6 +106,4 @@ jobs:
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-#            skavl-anomaly-${{ github.ref_name }}-linux.tar.gz
-            skavl-anomaly-${{ github.ref_name }}-windows.zip
+          files: skavl-anomaly-${{ github.ref_name }}-windows.zip
