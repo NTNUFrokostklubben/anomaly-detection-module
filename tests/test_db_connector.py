@@ -7,6 +7,19 @@ from utils.db_connector import DbConnector
 IMG_NAME = "HX-14365_073_001_14822.tif"
 
 
+@pytest.fixture(autouse=True)
+def reset_db_singleton():
+    DbConnector._instance = None
+    DbConnector._conn = None
+    DbConnector._db_file = ":memory:"
+    yield
+    if DbConnector._conn is not None:
+        DbConnector._conn.close()
+    DbConnector._instance = None
+    DbConnector._conn = None
+    DbConnector._db_file = "database.db"
+
+
 def test_singleton():
     a = DbConnector()
     b = DbConnector()
