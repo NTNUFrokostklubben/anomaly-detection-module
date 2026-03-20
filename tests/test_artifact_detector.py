@@ -4,7 +4,7 @@ import numpy as np
 
 
 
-from core.artifact_detector import calculate_average_color_block, detect_artifact_naive, detect_artifact_consistency
+from core.artifact_detector import calculate_average_color_block, detect_artifact_consistency
 from utils.io_tools import  read_tiff_fast
 
 
@@ -28,32 +28,6 @@ def test_calculate_average_color_block_uniform_image():
     img = make_image(height=10, width=10, value=100)
     result = calculate_average_color_block(img, 5)
     assert np.all(result == result[0, :])
-
-
-def test_detect_artifact_naive_shape_mismatch_returns_zero():
-    """Mismatched image shapes should return 0."""
-    img1 = make_image(height=10, width=10)
-    img2 = make_image(height=20, width=10)
-    result = detect_artifact_naive(img1, img2, increment=5)
-    assert result == 0
-
-
-def test_detect_artifact_naive_identical_images():
-    """Identical images should produce zero difference for all blocks."""
-    img = make_image(height=10, width=10, value=100)
-    result = detect_artifact_naive(img, img.copy(), increment=5)
-    assert isinstance(result, np.ndarray)
-    assert np.all(result == 0)
-
-
-def test_detect_artifact_naive_different_images():
-    """Clearly different images should produce non-zero block differences."""
-    img1 = make_image(height=10, width=10, value=50)
-    img2 = make_image(height=10, width=10, value=200)
-    result = detect_artifact_naive(img1, img2, increment=5)
-    assert isinstance(result, np.ndarray)
-    assert np.any(result > 0)
-
 
 def test_detect_artifact_consistency_identical_images():
     """Identical images should score 0 for all blocks (perfectly consistent)."""
@@ -127,12 +101,8 @@ def test_detect_artifact_naive_different_blocks_negative():
         "HX-14365_073_006_14827.tif",
         "HX-14365_073_007_14828.tif",
     ]
-    images = [read_tiff_fast(folder + name)[:, :, :3] for name in img_names]
+    images = [read_tiff_fast(folder + name) for name in img_names]
     result = detect_artifact_consistency(images, increment=30)
     print(images[0].shape)
-    """for name, img in zip(img_names, images):
-        region = img[ 2900:3000, 100:200, :3]
-        print(f"{name}: min={region.min()}, max={region.max()}, mean={region.mean():.4f}")"""
-
 
     print(np.sort(result.flatten())[:100])
