@@ -1,0 +1,111 @@
+#Linux build has been commented out for the time being as the sosi bundle only works on windows.
+#TODO: Implement SOSI bundling step for linux
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+#  linux-build:
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - name: Install Miniforge
+#        uses: conda-incubator/setup-miniconda@v3
+#        with:
+#          miniforge-version: latest
+#          activate-environment: base
+#          auto-update-conda: true
+#
+#      - name: Install conda-lock
+#        shell: bash -l {0}
+#        run: conda install -n base -c conda-forge conda-lock
+#
+#      - name: Create build environment
+#        shell: bash -l {0}
+#        run: conda-lock install --prefix ./env
+#
+#      - name: Install local package
+#        run: ./env/bin/python -m pip install -e .
+#
+#      - name: Build binary
+#        run: ./env/bin/pyinstaller server.spec
+#
+#      - name: Package artifact
+#        run: |
+#          tar -czf server-${GITHUB_REF_NAME}-linux.tar.gz -C dist server
+#
+#      - name: Upload artifact
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: server-linux
+#          path: server-${{ github.ref_name }}-linux.tar.gz
+
+  windows-build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Miniforge
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: base
+          auto-update-conda: true
+
+      - name: Install conda-lock
+        run: conda install -n base -c conda-forge conda-lock
+
+      - name: Create build environment
+        run: conda-lock install --prefix ./env
+
+      - name: Install local package
+        run: ./env/python -m pip install -e .
+
+      - name: Fetch sosi bundle (windows)
+        shell: pwsh
+        run: bash scripts\fetch_gdal_bundle_win.ps1
+
+      - name: Build binary
+        run: ./env/Scripts/pyinstaller server.spec
+
+      - name: Package artifact
+        run: Compress-Archive -Path dist/server -DestinationPath server-${env:GITHUB_REF_NAME}-windows.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-windows
+          path: server-${{ github.ref_name }}-windows.zip
+
+  publish-release:
+    runs-on: ubuntu-latest
+    needs:
+#      - linux-build
+      - windows-build
+    permissions:
+      contents: write
+
+    steps:
+#      - name: Download Linux artifact
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: server-linux
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: server-windows
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+#            skavl-anomaly-${{ github.ref_name }}-linux.tar.gz
+            skavl-anomaly-${{ github.ref_name }}-windows.zip
