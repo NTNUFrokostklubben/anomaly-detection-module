@@ -104,9 +104,12 @@ jobs:
       - name: Smoke test
         shell: pwsh
         run: |
+          $sosi = Join-Path $pwd "test_data" "TEST-001_Vertikalbilde.sos"
+          $images = Join-Path $pwd "test_data" "images"
+          New-Item -ItemType Directory -Path "dist/test_data" -Force | Out-Null
           $output = & dist/server/skavl-anomaly-detection-server.exe `
-            --sosi-input "test_data/TEST-001_Vertikalbilde.sos" `
-            --image-path "test_data/images" 2>&1 | Out-String
+            --sosi-input $sosi `
+            --image-path $images 2>&1 | Out-String
           Write-Host $output
           if ($LASTEXITCODE -ne 0) {
             Write-Error "Smoke test failed with exit code $LASTEXITCODE"
