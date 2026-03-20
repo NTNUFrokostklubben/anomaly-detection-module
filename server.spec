@@ -38,6 +38,7 @@ a = Analysis(
     datas=[
         ('lib/bundle', 'lib/bundle'),
         (str(Path(sys.prefix) / 'Lib' / 'site-packages' / 'chardet' / 'models'), 'chardet/models'),
+        (str(Path(sys.prefix) / 'Lib' / 'site-packages' / 'cv2' / 'python-3.12'), 'cv2/python-3.12'),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],
