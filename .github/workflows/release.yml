@@ -74,7 +74,8 @@ jobs:
         run: .\scripts\fetch_gdal_bundle_win.ps1
 
       - name: Build binary
-        run: ./env/Scripts/pyinstaller server.spec
+        shell: pwsh
+        run: conda run --prefix ./env pyinstaller server.spec
 
       - name: Package artifact
         run: Compress-Archive -Path dist/server -DestinationPath server-${env:GITHUB_REF_NAME}-windows.zip
