@@ -36,3 +36,4 @@ test_data/
 
 .idea
 __pycache__
+database.db
