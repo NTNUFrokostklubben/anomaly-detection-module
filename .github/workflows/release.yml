@@ -77,6 +77,12 @@ jobs:
         shell: pwsh
         run: conda run --prefix ./env pyinstaller server.spec
 
+      # Temporary debug to see why opencv does not build properly
+      - name: Debug build output
+        shell: pwsh
+        run: |
+          Get-ChildItem dist/server/cv2 -Recurse | Select-Object FullName
+
       - name: Package artifact
         run: Compress-Archive -Path dist/server -DestinationPath skavl-anomaly-${env:GITHUB_REF_NAME}-windows.zip
 
