@@ -12,18 +12,18 @@ One of the easiest ways of installing this is to install it on the base conda en
 conda install -n base -c conda-forge conda-lock
 ```
 
-Install the conda environment from the lockfile (skavl-tiler-build should be replaced with whatever environment name you want to use in conda)
+Install the conda environment from the lockfile (skavl-anomaly should be replaced with whatever environment name you want to use in conda)
 ```shell
-conda-lock install -n skavl-tiler-build .\conda-lock.yml
+conda-lock install -n skavl-anomaly .\conda-lock.yml
 ```
 Verify that an environment was created
 ```shell
 conda env list
 ```
 
-If the environment exists, activate it (replace skavl-tiler-build with the actual env name)
+If the environment exists, activate it (replace skavl-anomaly with the actual env name)
 ```shell
-conda activate skavl-tiler-build
+conda activate skavl-anomaly
 ```
 
 ### Run
