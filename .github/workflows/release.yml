@@ -77,12 +77,8 @@ jobs:
         shell: pwsh
         run: conda run --prefix ./env pyinstaller server.spec
 
-      # Temporary debug to see why opencv does not build properly
-      - name: Debug build output
-        shell: pwsh
-        run: |
-          Get-ChildItem dist/server/cv2 -Recurse | Select-Object FullName
-
+      # CV2 uses absolute paths due to its python bindings. This is a workaround we found that changes the bindings to use
+      # relative paths instead.
       - name: Fix cv2 config paths
         shell: pwsh
         run: |
