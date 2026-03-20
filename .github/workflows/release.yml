@@ -38,13 +38,13 @@ jobs:
 #
 #      - name: Package artifact
 #        run: |
-#          tar -czf server-${GITHUB_REF_NAME}-linux.tar.gz -C dist server
+#          tar -czf skavl-anomaly-${GITHUB_REF_NAME}-linux.tar.gz -C dist server
 #
 #      - name: Upload artifact
 #        uses: actions/upload-artifact@v4
 #        with:
-#          name: server-linux
-#          path: server-${{ github.ref_name }}-linux.tar.gz
+#          name: skavl-anomaly-linux
+#          path: skavl-anomaly-${{ github.ref_name }}-linux.tar.gz
 
   windows-build:
     runs-on: windows-latest
@@ -78,13 +78,13 @@ jobs:
         run: conda run --prefix ./env pyinstaller server.spec
 
       - name: Package artifact
-        run: Compress-Archive -Path dist/server -DestinationPath server-${env:GITHUB_REF_NAME}-windows.zip
+        run: Compress-Archive -Path dist/server -DestinationPath skavl-anomaly-${env:GITHUB_REF_NAME}-windows.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: server-windows
-          path: server-${{ github.ref_name }}-windows.zip
+          name: skavl-anomaly-windows
+          path: skavl-anomaly-${{ github.ref_name }}-windows.zip
 
   publish-release:
     runs-on: ubuntu-latest
@@ -98,12 +98,12 @@ jobs:
 #      - name: Download Linux artifact
 #        uses: actions/download-artifact@v4
 #        with:
-#          name: server-linux
+#          name: skavl-anomaly-linux
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
-          name: server-windows
+          name: skavl-anomaly-windows
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
