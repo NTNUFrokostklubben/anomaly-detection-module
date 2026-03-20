@@ -8,14 +8,19 @@ def get_bundle_root() -> Path:
     Returns:
         the bundle root of the environment
     """
-    project_root = Path(__file__).resolve().parents[3]
-    return project_root / "lib" / "gdal_bundle"
+    if getattr(sys, 'frozen', False):
+        base_path = Path(sys.executable).parent
+    else:
+        base_path = Path(__file__).resolve().parents[3]
+    return base_path / "lib" / "bundle"
 
 def setup_gdal_environment():
     """
     Sets up the gdal environment
     """
+
     bundle_root = get_bundle_root()
+    print(f"DEBUG: bundle_root = {bundle_root}")
     if not bundle_root.exists():
         raise FileNotFoundError(f"GDAL bundle not found at {bundle_root}")
 
