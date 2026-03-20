@@ -83,6 +83,22 @@ jobs:
         run: |
           Get-ChildItem dist/server/cv2 -Recurse | Select-Object FullName
 
+      - name: Fix cv2 config paths
+        shell: pwsh
+        run: |
+          @"
+          PYTHON_EXTENSIONS_PATHS = [
+              os.path.join(os.path.dirname(os.path.abspath(__file__)), 'python-3.12')
+          ] + PYTHON_EXTENSIONS_PATHS
+          "@ | Set-Content dist/server/cv2/config-3.12.py
+          
+          @"
+          import os
+          BINARIES_PATHS = [
+              os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+          ] + BINARIES_PATHS
+          "@ | Set-Content dist/server/cv2/config.py
+
       - name: Package artifact
         run: Compress-Archive -Path dist/server -DestinationPath skavl-anomaly-${env:GITHUB_REF_NAME}-windows.zip
 
