@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-    Fetches the SOSI driver bundle from GitHub Packages and extracts to lib/bundle.
+    Fetches the anomaly detection test data from GitHub Packages and extracts to test_data.
 
 .DESCRIPTION
-    Pulls a pinned version of the SOSI driver bundle from ghcr.io using the OCI
-    distribution API (curl only, no ORAS required). Verifies SHA256 and extracts.
+    Pulls a pinned version of the test data bundle from ghcr.io using the OCI
+    distribution API (curl only). Verifies SHA256 and extracts to test_data/.
     Version and SHA256 are read from bundle-versions.json in the project root.
 #>
 
@@ -18,34 +18,31 @@ if (-not (Test-Path $versionFile)) {
     exit 1
 }
 
-$config = (Get-Content $versionFile | ConvertFrom-Json)."sosi-driver-bundle"
+$config = (Get-Content $versionFile | ConvertFrom-Json)."anomaly-detection-test-data"
 $Version = $config.version
 $ExpectedSHA256 = $config.sha256
 
-$image = "ntnufrokostklubben/sosi-driver-bundle"
-$libDir = Join-Path $projectRoot "lib"
-$bundleDir = Join-Path $libDir "bundle"
-$versionMarker = Join-Path $libDir ".version"
+$image = "ntnufrokostklubben/anomaly-detection-test-data"
+$outputDir = Join-Path $projectRoot "test_data"
+$versionMarker = Join-Path $outputDir ".version"
 
 # Check if already up to date
 if (Test-Path $versionMarker) {
     $installed = (Get-Content $versionMarker).Trim()
     if ($installed -eq $Version) {
-        Write-Host "SOSI bundle $Version already up to date."
+        Write-Host "Test data $Version already up to date."
         exit 0
     }
 }
 
 # Remove existing and re-download
-if (Test-Path $bundleDir) {
-    Remove-Item $bundleDir -Recurse -Force
+if (Test-Path $outputDir) {
+    Remove-Item $outputDir -Recurse -Force
 }
-if (-not (Test-Path $libDir)) {
-    New-Item -ItemType Directory -Path $libDir | Out-Null
-}
+New-Item -ItemType Directory -Path $outputDir | Out-Null
 
 # Step 1: Get anonymous pull token
-Write-Host "Downloading SOSI bundle $Version..."
+Write-Host "Downloading test data $Version..."
 $tokenResponse = curl.exe -s "https://ghcr.io/token?service=ghcr.io&scope=repository:${image}:pull" | ConvertFrom-Json
 $token = $tokenResponse.token
 
@@ -62,7 +59,7 @@ if (-not $layerDigest) {
 }
 
 # Step 3: Download the blob
-$zipPath = Join-Path $env:TEMP "sosi-driver-bundle.zip"
+$zipPath = Join-Path $env:TEMP "anomaly-detection-test-data.zip"
 curl.exe -L `
     -H "Authorization: Bearer $token" `
     -o $zipPath `
@@ -85,10 +82,10 @@ if ($ExpectedSHA256) {
     Write-Warning "No SHA256 configured in bundle-versions.json. Skipping verification."
 }
 
-# Extract into lib/ — the zip contains a bundle/ folder
-Expand-Archive -Path $zipPath -DestinationPath $libDir -Force
+# Extract
+Expand-Archive -Path $zipPath -DestinationPath $outputDir -Force
 Remove-Item $zipPath -Force
 
 Set-Content -Path $versionMarker -Value $Version
 
-Write-Host "Done. SOSI bundle $Version ready."
+Write-Host "Done. Test data $Version ready."
