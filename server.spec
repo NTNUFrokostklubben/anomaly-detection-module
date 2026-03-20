@@ -35,7 +35,10 @@ a = Analysis(
     [str(Path("src") / "main.py")],
     pathex=[],
     binaries=binaries,
-    datas=[('lib/bundle', 'lib/bundle')],
+    datas=[
+        ('lib/bundle', 'lib/bundle'),
+        (str(Path(sys.prefix) / 'Lib' / 'site-packages' / 'chardet' / 'models'), 'chardet/models'),
+    ],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
