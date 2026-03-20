@@ -71,7 +71,7 @@ jobs:
 
       - name: Fetch sosi bundle (windows)
         shell: pwsh
-        run: bash scripts\fetch_gdal_bundle_win.ps1
+        run: .\scripts\fetch_gdal_bundle_win.ps1
 
       - name: Build binary
         run: ./env/Scripts/pyinstaller server.spec
