@@ -116,4 +116,4 @@ jobs:
             Write-Error "Smoke test failed: expected 'Found 3 images in the GeoPackage' in output"
             exit 1
           }
-          Write-Host "Smoke test passed.
+          Write-Host "Smoke test passed."
