@@ -1,0 +1,37 @@
+name: Run Tests
+
+on:
+  pull_request:
+        branches:
+            - main
+            - develop
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install Miniforge
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: base
+          auto-update-conda: true
+
+      - name: Install conda-lock
+        shell: bash -l {0}
+        run: conda install -n base -c conda-forge conda-lock
+
+      - name: Create build environment
+        shell: bash -l {0}
+        run: conda-lock install --prefix ./env
+
+      - name: Install local package
+        shell: bash -l {0}
+        run: conda run --prefix ./env pip install -e .
+
+      - name: Run tests
+        shell: bash -l {0}
+        run: conda run --prefix ./env pytest

@@ -1,0 +1,19 @@
+channels:
+  - defaults
+dependencies:
+  - numpy
+  - scikit-image
+  - numba
+  - gdal
+  - geopandas
+  - python=3.12
+  - cudatoolkit
+  - imagecodecs
+  - rasterio
+  - opencv
+  - affine
+  - conda-lock
+  - tifffile
+  - pytest
+  - chardet
+  - pyinstaller
