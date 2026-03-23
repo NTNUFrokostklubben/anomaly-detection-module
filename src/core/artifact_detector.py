@@ -52,6 +52,6 @@ def detect_artifact_consistency(images: list[image.Image], increment: int) -> np
         img.artifact_data = image.ArtifactData( data=data,dtype=data.dtype ,shape=data.shape,offset=increment )
         conn.add_artifact_data(img.img_id,data=img.artifact_data.data, offset= increment )
 
-    block_means = np.stack([img.img_arr for img in images])
+    block_means = np.stack([img.artifact_data.data for img in images])
     return (block_means.max(axis=0) - block_means.min(axis=0)).sum(axis=1) / 3.0
 
