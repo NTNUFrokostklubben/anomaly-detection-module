@@ -1,6 +1,7 @@
 import numpy as np
 import core.water_detector as wd
 from numba import prange, njit
+import utils.db_connector  as db
 
 
 @njit(parallel=True, cache=True)
@@ -9,7 +10,7 @@ def calculate_average_color_block(img_arr: np.ndarray[tuple[int, int, int]],  in
     Calculate the average color in a block of size "increment" squared, and then return a list of values.
     :param img_arr: the image to process. Expects (Band, H, W)
     :param increment: the amount of jumps to do and the shape of the block.
-    :return:
+    :return: the array of color values for the image.
     """
 
     _, y_shape,x_shape  = img_arr.shape
@@ -41,7 +42,11 @@ def detect_artifact_consistency(images: list, increment: int) -> np.ndarray:
     :param increment: block size in pixels, total pixels is increment squared.
     :return: 1D array of per-block consistency scores. Low values indicate likely artifacts.
     """
-    block_means = np.stack([calculate_average_color_block(img, increment) for img in images])
-    return (block_means.max(axis=0) - block_means.min(axis=0)).sum(axis=1) / 3.0
 
+    calculated_images = [calculate_average_color_block(img, increment) for img in images]
+    conn = db.DbConnector()
+    for img in calculated_images:
+        conn.add_artifact_data()
+    block_means = np.stack(calculated_images)
+    return (block_means.max(axis=0) - block_means.min(axis=0)).sum(axis=1) / 3.0
 
