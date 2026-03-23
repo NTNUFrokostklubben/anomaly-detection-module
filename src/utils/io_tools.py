@@ -44,8 +44,8 @@ def load_geotiff_dataset(path: str) ->  gdal.Dataset:
 def read_tiff_fast(path) -> np.ndarray[tuple[int, int, int]]:
     """
     Fast reading of large tiff image using tifffile with turbojpeg. No metadata included, for that use
-    `load_geotiff_dataset`
-
+    `load_geotiff_dataset`. Transposes images to be (Bands, H,W) from (H,W, Bands) since code base already uses that
+     format. Also slices away any extra bands outside RGB, since some image manipulation software adds alpha channel band.
     :param path: path to the tiff image.
     :return: the image as array in shape(bands, H, W).
     """
