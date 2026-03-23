@@ -2,6 +2,7 @@ import numpy as np
 import core.water_detector as wd
 from numba import prange, njit
 import utils.db_connector  as db
+from entity import image
 
 
 @njit(parallel=True, cache=True)
@@ -33,20 +34,24 @@ def calculate_average_color_block(img_arr: np.ndarray[tuple[int, int, int]],  in
     return color_values
 
 
-def detect_artifact_consistency(images: list, increment: int) -> np.ndarray:
+def detect_artifact_consistency(images: list[image.Image], increment: int) -> np.ndarray:
     """
     Detects artifact blocks by measuring color consistency across multiple images.
     A block that stays the same color across all images likely contains an artifact.
 
-    :param images: list of image arrays, each of shape (Band, H, W).
+    :param images: list of image objects, Must contain at least img_arr and img_id
     :param increment: block size in pixels, total pixels is increment squared.
     :return: 1D array of per-block consistency scores. Low values indicate likely artifacts.
     """
 
-    calculated_images = [calculate_average_color_block(img, increment) for img in images]
+
     conn = db.DbConnector()
-    for img in calculated_images:
-        conn.add_artifact_data()
-    block_means = np.stack(calculated_images)
+
+    for img in images:
+        data = calculate_average_color_block(img.img_arr, increment)
+        img.artifact_data = image.ArtifactData( data=data,dtype=data.dtype ,shape=data.shape,offset=increment )
+        conn.add_artifact_data(img.img_id,data=img.artifact_data.data, offset= increment )
+
+    block_means = np.stack([img.img_arr for img in images])
     return (block_means.max(axis=0) - block_means.min(axis=0)).sum(axis=1) / 3.0
 
