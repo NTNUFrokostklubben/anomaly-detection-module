@@ -5,6 +5,7 @@ from core.artifact_detector import calculate_average_color_block, detect_artifac
 from entity.image.Image import Image
 from utils.db_connector import DbConnector
 from utils.io_tools import read_tiff_fast
+from utils.string_manip import slice_image_name
 
 
 @pytest.fixture(autouse=True)
@@ -90,13 +91,13 @@ def _load_images(folder, img_names):
     images = []
     for name in img_names:
         arr = read_tiff_fast(folder + name)
-        parts = name.split("_")
+        prefix, line, line_number, abs_number = slice_image_name(name)
         images.append(Image(
             img_id=name,
-            prefix=parts[0],
-            line=int(parts[1]),
-            line_number=int(parts[2]),
-            abs_number=int(parts[3].split(".")[0]),
+            prefix=prefix,
+            line=line,
+            line_number=line_number,
+            abs_number=abs_number,
             img_arr=arr,
         ))
     return images
