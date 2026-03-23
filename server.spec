@@ -16,6 +16,7 @@ binaries += collect_conda_dynamic_libs("pillow", dependencies=True)
 binaries += collect_conda_dynamic_libs("rasterio", dependencies=True)
 binaries += collect_conda_dynamic_libs("opencv", dependencies=True)
 binaries += collect_conda_dynamic_libs("pyogrio", dependencies=True)
+binaries += collect_conda_dynamic_libs("grpcio", dependencies=True)
 
 # This WILL need to be updated as source code changes and more code is added.
 hiddenimports += collect_submodules("rasterio")
@@ -25,6 +26,7 @@ hiddenimports += collect_submodules("geopandas")
 hiddenimports += collect_submodules("tifffile")
 hiddenimports += collect_submodules("imagecodecs")
 hiddenimports += collect_submodules("pyogrio")
+hiddenimports += collect_submodules("grpc")
 
 # Linux-specific dependency (required by GDAL stack)
 if sys.platform.startswith("linux"):

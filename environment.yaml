@@ -17,3 +17,5 @@ dependencies:
   - pytest
   - chardet
   - pyinstaller
+  - grpcio
+  - grpcio-tools
