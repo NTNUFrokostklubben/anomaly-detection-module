@@ -2,7 +2,7 @@ import sqlite3 as sql
 from os.path import exists
 import atexit
 from pathlib import Path
-
+from utils.string_manip import slice_image_name
 import numpy as np
 
 
@@ -63,11 +63,7 @@ class DbConnector:
         """
         try:
             cursor = self._conn.cursor()
-            partitions = img_file_name.split('_')
-            prefix = partitions[0]
-            line = int(partitions[1])
-            line_number = int(partitions[2])
-            abs_number = int(partitions[3].split('.')[0])
+            prefix, line, line_number, abs_number =  slice_image_name(img_file_name)
             cursor.execute(
                 """INSERT INTO images(img_id, prefix, line, line_number, abs_number) VALUES(?, ?, ?, ?, ?)""",
                 (img_file_name, prefix, line, line_number, abs_number))

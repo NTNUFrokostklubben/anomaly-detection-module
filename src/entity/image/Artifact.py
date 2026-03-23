@@ -34,7 +34,7 @@ class ArtifactData:
         data: Array of detection values; orders of magnitude smaller than
               the total pixel count of the source image.
     """
+    data: np.ndarray
     dtype: str
     shape: tuple
     offset: int
-    data: np.ndarray

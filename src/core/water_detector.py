@@ -62,9 +62,9 @@ def _block_has_mask(polygon_mask: np.ndarray, y_start: int, y_end: int, x_start:
 
 
 @njit(cache=True)
-def _block_mean_rgb(data: np.ndarray, polygon_mask: np.ndarray, y_start: int, y_end: int, x_start: int, x_end: int) -> tuple:
+def block_mean_rgb(data: np.ndarray, y_start: int, y_end: int, x_start: int, x_end: int, polygon_mask: np.ndarray) -> tuple:
     """
-    Computes the mean normalised RGB values for all masked pixels within the block.
+    Computes the mean normalised RGB values for all pixels within the block, optional mask check.
 
     :param data: image array of shape (3, H, W) with uint8 pixel values.
     :param polygon_mask: 2D boolean array where True marks pixels inside the polygon.
@@ -74,13 +74,16 @@ def _block_mean_rgb(data: np.ndarray, polygon_mask: np.ndarray, y_start: int, y_
     :param x_end: last column index of the block (exclusive).
     :return: tuple (r_mean, g_mean, b_mean) in the range [0.0, 1.0].
     """
+    no_mask = False
+    if polygon_mask is None:
+        no_mask = True
     r_sum = 0.0
     g_sum = 0.0
     b_sum = 0.0
     count = 0
     for y in range(y_start, y_end):
         for x in range(x_start, x_end):
-            if polygon_mask[y, x]:
+            if no_mask or polygon_mask[y, x]:
                 r_sum += data[0, y, x]
                 g_sum += data[1, y, x]
                 b_sum += data[2, y, x]
@@ -195,7 +198,7 @@ def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int
                 previous = False
                 continue
 
-            r_mean, g_mean, b_mean = _block_mean_rgb(data, constraint_region, y_start, y_end, x_start, x_end)
+            r_mean, g_mean, b_mean = block_mean_rgb(data, y_start, y_end, x_start, x_end, constraint_region)
             h, chroma = _rgb_to_hue(r_mean, g_mean, b_mean)
 
             if WATER_HUE_MIN < h < WATER_HUE_MAX and chroma > WATER_CHROMA_MIN:

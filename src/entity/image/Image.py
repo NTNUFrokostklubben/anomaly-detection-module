@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 import numpy as np
-import Artifact as Art
+import entity.image.Artifact as Art
 
 
 @dataclass
