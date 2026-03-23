@@ -2,7 +2,7 @@ import sqlite3 as sql
 from os.path import exists
 import atexit
 from pathlib import Path
-from utils import slice_image_name
+from utils.string_manip import slice_image_name
 import numpy as np
 
 
