@@ -103,8 +103,13 @@ def _load_images(folder, img_names):
     return images
 
 
-def test_detect_artifact_naive_different_blocks_positive():
-    folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\"
+def detect_artifact_naive_different_blocks_positive():
+    """
+    Only for manual testing, replace folder variable with actual folder location
+    :return:
+    """
+    #folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\"
+    folder = ""
     img_names = [
         "HX-14365_073_001_14822.tif",
         "HX-14365_073_002_14823.tif",
@@ -128,8 +133,13 @@ def test_detect_artifact_naive_different_blocks_positive():
     print(np.sort(result.flatten())[:100])
 
 
-def test_detect_artifact_naive_different_blocks_negative():
-    folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\artifact-images\\"
+def detect_artifact_naive_different_blocks_negative():
+    """
+    Only for manual testing, replace folder variable with actual folder location for images with artifacts.
+    :return:
+    """
+    #folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\artifact-images\\"
+    folder = ""
     img_names = [
         "HX-14365_073_001_14822.tif",
         "HX-14365_073_002_14823.tif",
