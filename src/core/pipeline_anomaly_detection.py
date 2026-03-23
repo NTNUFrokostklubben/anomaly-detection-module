@@ -1,16 +1,35 @@
+from datetime import datetime
+
+from core import crop_arrays_binary
 from core.color_diff import check_difference_two_images
 from pathlib import Path
 import time
 from controller.image_cache_controller import  load_image_array
 import geopandas as gpd
 import numpy as np
+import core.water_detector as wd
+from  osgeo.gdal import Dataset
+from entity.image.Image import Image
 
-def start_water_detection_analysis():
+def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, water_gdf: gpd.GeoDataFrame):
     """
     Start water detection analysis
     """
-    # Todo connect with the finished result of the water detection analysis
-    return
+    increment = 30
+    before = datetime.now()
+    polygon_mask = wd.create_water_polygon_mask(water_gdf, sosig_df, image.img_id, image.dataset)
+    polygon_mask = wd.clean_water_mask(polygon_mask)
+    hsl_mask = wd.create_water_mask_hsl(image.img_arr,increment, polygon_mask )
+    polygon_mask, hsl_mask = crop_arrays_binary(polygon_mask, hsl_mask)
+    disagreement_ratio = wd.find_disagreement_ratio(polygon_mask, hsl_mask)
+    after = datetime.now()
+    t = (after - before)
+    print("----------- Water  mask difference -------------")
+
+    print(f"Analysing water mask in image{image.img_id}")
+    print(f"Disagreement ratio between masks: {disagreement_ratio}")
+    print(f"Time analysis: {t:.6f}s\n")
+
 
 def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i:int, arr1: np.ndarray, arr2: np.ndarray ):
     """
@@ -39,32 +58,36 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i:int, arr1: np.ndarr
     print(f"Difference: {diff}")
     print(f"Time analysis: {t:.6f}s\n")
 
-def start_anomaly_analysis(gdf, image_folder_path: Path):
+def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, water_gdf, image_folder_path: Path):
     """
     Start anomaly analysis
     Args:
-        gdf (gpd.GeoDataFrame): The geodataframe to analyse
+        sosi_gdf: The geodataframe to analyse
         image_folder_path (Path): The folder path of the images to analyse
+        water_gdf: The water contour GeoDataFrame for water masking.
     """
-    image_count = len(gdf)
+    image_count = len(sosi_gdf)
 
     t0 = time.perf_counter()
     for i in range(image_count - 1):
 
-        img1_path = image_folder_path / gdf.iloc[i]["bildefilRGB"]
-        img2_path = image_folder_path / gdf.iloc[i + 1]["bildefilRGB"]
+        img1_path = image_folder_path / sosi_gdf.iloc[i]["bildefilRGB"]
+        img2_path = image_folder_path / sosi_gdf.iloc[i + 1]["bildefilRGB"]
+
+
 
         if not img1_path.exists() or not img2_path.exists():
             continue
-
-        arr1, arr2, t_load = load_image_array(img1_path, img2_path)
-
+        image: Image = Image.from_filename(sosi_gdf.iloc[i]["bildefilRGB"])
+        arr1, ds1, arr2, _, t_load = load_image_array(img1_path, img2_path)
+        image.img_arr = arr1
+        image.dataset = ds1
         print("------------------------------------------")
-        print(f"Comparing image {gdf.iloc[i]['bildenummer']} and image {gdf.iloc[i + 1]['bildenummer']}")
+        print(f"Comparing image {sosi_gdf.iloc[i]['bildenummer']} and image {sosi_gdf.iloc[i + 1]['bildenummer']}")
         print(f"Loading images to arr : {t_load:.6f}s \n")
 
-        start_color_difference_analysis(gdf, i, arr1, arr2)
-        start_water_detection_analysis()
+        start_color_difference_analysis(sosi_gdf, i, arr1, arr2)
+        start_water_detection_analysis(image, sosi_gdf, water_gdf)
         print("\n")
 
 

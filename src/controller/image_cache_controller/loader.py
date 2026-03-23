@@ -1,6 +1,7 @@
 import time
 from pathlib import Path
 import numpy as np
+from osgeo.gdal import Dataset
 
 from .image_cache import ImageCache
 
@@ -8,7 +9,7 @@ from .image_cache import ImageCache
 def load_image_array(
         img1_path: Path,
         img2_path: Path,
-) -> tuple[np.ndarray, np.ndarray, float]:
+) -> tuple[np.ndarray, Dataset, np.ndarray, Dataset, float]:
     """
     Load two images using the singleton cache.
 
@@ -24,9 +25,9 @@ def load_image_array(
 
     t0 = time.perf_counter()
 
-    arr1 = cache.get(img1_path)
-    arr2 = cache.get(img2_path)
+    arr1, ds1 = cache.get(img1_path)
+    arr2, ds2 = cache.get(img2_path)
 
     t_load = time.perf_counter() - t0
 
-    return arr1, arr2, t_load
+    return arr1, ds1, arr2,ds2, t_load

@@ -1,7 +1,7 @@
 {
   "sosi-driver-bundle": {
-    "version": "1.1.0",
-    "sha256": "590F816B8FFD9FCCDFE1381526BA68149DECC83A74ED454C9B6D98D07DC3AF95"
+    "version": "1.0.0",
+    "sha256": "1fcbdacb3453b143788e2b46536c59737051dadf7a0204fe931b65252a7d6673"
   },
   "anomaly-detection-test-data": {
     "version": "1.0.0",

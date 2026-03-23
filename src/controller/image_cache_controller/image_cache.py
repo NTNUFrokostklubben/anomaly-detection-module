@@ -1,6 +1,7 @@
 from osgeo import gdal
 import numpy as np
 from pathlib import Path
+from utils.io_tools import read_tiff_fast
 
 
 class ImageCache:
@@ -44,7 +45,7 @@ class ImageCache:
         ds = gdal.Open(str(img_path))
         if ds is None:
             raise ValueError(f"Could not open image: {img_path}")
-        arr = ds.ReadAsArray()
+        arr = read_tiff_fast(img_path)
 
         if arr.ndim == 2:
             arr = arr[np.newaxis, :, :]
@@ -57,7 +58,7 @@ class ImageCache:
         self._cache[img_path] = arr
         self._order.append(img_path)
 
-        return arr
+        return arr, ds
 
     def clear(self):
         """Clear cache completely."""
