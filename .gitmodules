@@ -1,0 +1,3 @@
+[submodule "skavl-proto"]
+	path = skavl-proto
+	url = git@github.com:NTNUFrokostklubben/skavl-proto.git
