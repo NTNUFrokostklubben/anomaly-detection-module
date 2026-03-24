@@ -26,3 +26,8 @@ CREATE TABLE IF NOT EXISTS artifact_candidates(
     FOREIGN KEY (img_id) REFERENCES artifact_datapoints(img_id) ON DELETE CASCADE,
     PRIMARY KEY  (coord_y, coord_x, img_id)
 );
+CREATE TABLE IF NOT EXISTS projects (
+    project_name TEXT PRIMARY KEY NOT NULL,
+    sosi_path TEXT,
+    image_folder_path TEXT
+);

@@ -2,6 +2,8 @@ import sqlite3 as sql
 from os.path import exists
 import atexit
 from pathlib import Path
+
+from entity.anomaly.ProjectMetadata import ProjectMetadata
 from utils.string_manip import slice_image_name
 import numpy as np
 
@@ -44,7 +46,7 @@ class DbConnector:
                 with open(self._sql_file, 'r') as f:
                         sql_script = f.read()
 
-                self._conn = sql.connect(self._db_file)
+                self._conn = sql.connect(self._db_file, check_same_thread=False)
                 self._conn.execute("PRAGMA foreign_keys = ON")
                 self._conn.execute("PRAGMA journal_mode=WAL")
                 cursor = self._conn.cursor()
@@ -141,6 +143,47 @@ class DbConnector:
         except sql.DatabaseError:
             return False
 
+    def add_project(self, project_name: str, sosi_path: str, image_folder_path: str):
+        """
+
+        Args:
+            project_name: Project name to be added from SKAVL
+            sosi_path: Canonicalized path to sosi file for this project
+            image_folder_path: Canonicalized path to geotiff files for this project
+
+        Returns:
+
+        """
+        try:
+            cursor = self._conn.cursor()
+            cursor.execute("""
+                INSERT INTO projects (project_name, sosi_path, image_folder_path) VALUES (?,?,?)
+            """, (project_name,sosi_path,image_folder_path))
+            self.commit()
+            return True
+        except Exception as e:
+            print(e)
+            return False
+
+    def get_project(self, project_name: str) -> ProjectMetadata:
+        """
+        Gets project data stored in DB
+
+        Args:
+            project_name: project name string
+
+        Returns:
+            tuple: (project_name, sosi_path, image_folder_path)
+
+        """
+        try:
+            cursor = self._conn.cursor();
+            cursor.execute("""
+                SELECT project_name, sosi_path, image_folder_path FROM projects WHERE project_name = ?
+            """, (project_name,))
+            return ProjectMetadata.from_row(cursor.fetchone())
+        except:
+            return None
 
     def commit(self):
         """
