@@ -1,8 +1,57 @@
 import time
 import numpy as np
-from pathlib import Path
 import geopandas as gpd
-from utils.find_overlap import get_overlap_pixel_images
+from src.utils.find_overlap import get_overlap_pixel_images
+import math
+
+
+def set_confidence_level(diff: float) -> dict:
+    norm_diff = abs(diff / 255.0)
+
+    # F1: Shifted exponential
+    k1, t1 = 40, 0.025
+    f1 = 1 - math.exp(-k1 * (norm_diff - t1)) if norm_diff > t1 else 0.0
+
+    # F2: Power-scaled exponential
+    k2, p2 = 20000, 3
+    f2 = 1 - math.exp(-k2 * (norm_diff ** p2))
+
+    # F3: Logistic — zero-floored
+    k3, t3 = 120, 0.045
+    f3_floor = 1 / (1 + math.exp(-k3 * (0 - t3)))
+    f3_raw = 1 / (1 + math.exp(-k3 * (norm_diff - t3)))
+    f3 = (f3_raw - f3_floor) / (1 - f3_floor)
+
+    # F4: Gompertz — zero-floored
+    k4, t4 = 60, 0.05
+    f4_floor = 1 - math.exp(-math.exp(k4 * (0 - t4)))
+    f4_raw = 1 - math.exp(-math.exp(k4 * (norm_diff - t4)))
+    f4 = (f4_raw - f4_floor) / (1 - f4_floor)
+
+    # F5: Hill function
+    t5, p5 = 0.05, 3
+    ratio = (norm_diff / t5) ** p5
+    f5 = ratio / (1 + ratio)
+
+    results = {
+        "norm_diff": norm_diff,
+        "F1_shifted_exp": f1,
+        "F2_power_exp": f2,
+        "F3_logistic": f3,
+        "F4_gompertz": f4,
+        "F5_hill": f5,
+    }
+
+    print(f"\n--- Confidence analysis ---")
+    print(f"Raw diff:         {diff}")
+    print(f"Normalized diff:  {norm_diff:.6f}")
+    print(f"{'Function':<22} {'Score':>8}")
+    print("-" * 32)
+    for key, value in results.items():
+        if key != "norm_diff":
+            print(f"{key:<22} {value:>8.6f}")
+
+    return results
 
 def color_average_overlap(ds_arr: np.ndarray, bounds:tuple[float, float, float, float]) -> float:
     """Calculate the average colour value of a GDAL dataset for a specific overlapping region defined by bounds.
@@ -26,7 +75,7 @@ def overlap_color_difference(ds_arr1: np.ndarray,
                              bounds2: tuple[float, float, float, float]
                              ) -> tuple[float, float, float]:
     """
-    Compute color difference between overlapping image regions
+    Compute colour difference between overlapping image regions
     
     Args:
         ds_arr1 (np.ndarray): first image dataset
@@ -43,21 +92,6 @@ def overlap_color_difference(ds_arr1: np.ndarray,
 
     return avg1, avg2, diff
 
-# def timer(func, *args, **kwargs) -> tuple[tuple[float, float, float], float]:
-#     """Timer function for checking colour difference
-#
-#     Args:
-#         func (any): function to time
-#         *args (any): arguments to pass to the function
-#
-#     Returns:
-#         tuple[tuple[float, float, float], float] : result of the function and time taken in seconds
-#     """
-#     start = time.perf_counter()
-#     result = func(*args, **kwargs)
-#     end = time.perf_counter()
-#     return result, end - start
-
 
 def check_difference_two_images(gdf: gpd.GeoDataFrame,
                                 img1_num: int,
@@ -73,12 +107,14 @@ def check_difference_two_images(gdf: gpd.GeoDataFrame,
         gdf (gpd.GeoDataFrame): GeoDataFrame containing two images to compare
         img1_num (int): First image number
         strip1 (int): First strip number
-        img1_path (Path): First image path
+        arr1 (np.ndarray): First image array
         img2_num (int): Second image number
         strip2 (int): Second strip number
-        img2_path (Path): Second image path
+        arr2 (np.ndarray): Second image array
 
     Returns:
+        avg1 and avg2 are the average brightness values, diff is the absolute difference between them,
+        and time is the total time taken in seconds
 
     """
     bounds1, bounds2 = get_overlap_pixel_images(gdf, img1_num, strip1, img2_num, strip2)
@@ -92,4 +128,6 @@ def check_difference_two_images(gdf: gpd.GeoDataFrame,
 
     avg1, avg2, diff = result
 
-    return avg1, avg2, diff, end - start
+    confidence_level = set_confidence_level(diff)
+
+    return avg1, avg2, diff, end - start, confidence_level
