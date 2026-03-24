@@ -8,8 +8,20 @@ from controller.image_cache_controller import  load_two_image_arrays, load_image
 import geopandas as gpd
 import numpy as np
 import core.water_detector as wd
-from  osgeo.gdal import Dataset
 from entity.image.Image import Image
+import core.artifact_detector as ad
+
+def start_artifact_detection_analysis(image, increment):
+    before = datetime.now()
+    values = ad.detect_artifact_consistency([image], increment)
+    after = datetime.now()
+    t = (after - before).total_seconds()
+    if values is not None:
+        print("----------- artifact analysis -------------")
+
+        print(f"Analysing artifacts in image{image.img_id}")
+        print(f"Artifact candidates: {np.sort(values.flatten())[:20]}")
+        print(f"Time analysis: {t:.6f}s\n")
 
 def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, water_gdf: gpd.GeoDataFrame):
     """
@@ -74,20 +86,22 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, water_gdf, image_folder_p
         img1_path = image_folder_path / sosi_gdf.iloc[i]["bildefilRGB"]
         img2_path = image_folder_path / sosi_gdf.iloc[i + 1]["bildefilRGB"]
 
-
-
         if not img1_path.exists() or not img2_path.exists():
             continue
-        image: Image = Image.from_filename(sosi_gdf.iloc[i]["bildefilRGB"])
-        arr1, ds1, arr2, _, t_load = load_two_image_arrays(img1_path, img2_path)
-        image.img_arr, image.dataset = arr1, ds1
+        image1: Image = Image.from_filename(sosi_gdf.iloc[i]["bildefilRGB"])
+       # image2 = Image.from_filename(sosi_gdf.iloc[i+1]["bildefilRGB"])
+        arr1, ds1, arr2, ds2, t_load = load_two_image_arrays(img1_path, img2_path)
+        image1.img_arr, image1.dataset = arr1, ds1
+        #image2.img_arr, image2.dataset  = arr2, ds2
 
         print("------------------------------------------")
         print(f"Comparing image {sosi_gdf.iloc[i]['bildenummer']} and image {sosi_gdf.iloc[i + 1]['bildenummer']}")
         print(f"Loading images to arr : {t_load:.6f}s \n")
 
         start_color_difference_analysis(sosi_gdf, i, arr1, arr2)
-        start_water_detection_analysis(image, sosi_gdf, water_gdf)
+        start_water_detection_analysis(image1, sosi_gdf, water_gdf)
+        start_artifact_detection_analysis(image1, 100)
+
         print("\n")
 
 
