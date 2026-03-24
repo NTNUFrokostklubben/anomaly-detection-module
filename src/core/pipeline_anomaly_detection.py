@@ -4,7 +4,7 @@ from core import crop_arrays_binary
 from core.color_diff import check_difference_two_images
 from pathlib import Path
 import time
-from controller.image_cache_controller import  load_image_array
+from controller.image_cache_controller import  load_two_image_arrays, load_image_array
 import geopandas as gpd
 import numpy as np
 import core.water_detector as wd
@@ -23,7 +23,7 @@ def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, wat
     polygon_mask, hsl_mask = crop_arrays_binary(polygon_mask, hsl_mask)
     disagreement_ratio = wd.find_disagreement_ratio(polygon_mask, hsl_mask)
     after = datetime.now()
-    t = (after - before)
+    t = (after - before).total_seconds()
     print("----------- Water  mask difference -------------")
 
     print(f"Analysing water mask in image{image.img_id}")
@@ -79,9 +79,9 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, water_gdf, image_folder_p
         if not img1_path.exists() or not img2_path.exists():
             continue
         image: Image = Image.from_filename(sosi_gdf.iloc[i]["bildefilRGB"])
-        arr1, ds1, arr2, _, t_load = load_image_array(img1_path, img2_path)
-        image.img_arr = arr1
-        image.dataset = ds1
+        arr1, ds1, arr2, _, t_load = load_two_image_arrays(img1_path, img2_path)
+        image.img_arr, image.dataset = arr1, ds1
+
         print("------------------------------------------")
         print(f"Comparing image {sosi_gdf.iloc[i]['bildenummer']} and image {sosi_gdf.iloc[i + 1]['bildenummer']}")
         print(f"Loading images to arr : {t_load:.6f}s \n")
