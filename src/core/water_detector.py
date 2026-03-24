@@ -62,7 +62,7 @@ def _block_has_mask(polygon_mask: np.ndarray, y_start: int, y_end: int, x_start:
 
 
 @njit(cache=True)
-def block_mean_rgb(data: np.ndarray, y_start: int, y_end: int, x_start: int, x_end: int, polygon_mask: np.ndarray) -> tuple:
+def block_mean_rgb(data: np.ndarray, y_start: int, y_end: int, x_start: int, x_end: int, polygon_mask: np.ndarray | None) -> tuple:
     """
     Computes the mean normalised RGB values for all pixels within the block, optional mask check.
 
