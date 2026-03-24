@@ -29,5 +29,6 @@ CREATE TABLE IF NOT EXISTS artifact_candidates(
 CREATE TABLE IF NOT EXISTS projects (
     project_name TEXT PRIMARY KEY NOT NULL,
     sosi_path TEXT,
-    image_folder_path TEXT
+    image_folder_path TEXT,
+    last_processed_image_index INTEGER DEFAULT 0
 );

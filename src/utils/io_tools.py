@@ -52,3 +52,14 @@ def read_tiff_fast(path) -> np.ndarray[tuple[int, int, int]]:
     img = tf.imread(path, maxworkers=8)
     return np.transpose(img[:, :, :3], (2, 0, 1))
 
+def count_images_in_folder(path) -> int:
+    """
+    Counts all GeoTIFF images present for a path
+
+    Args:
+        path: Canonical path to folder containing images
+
+    Returns:
+        Number of GeoTIFF images
+    """
+    return len(list(Path(path).glob("*.tif")))

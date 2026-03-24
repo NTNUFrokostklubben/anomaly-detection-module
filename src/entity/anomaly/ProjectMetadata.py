@@ -9,6 +9,7 @@ class ProjectMetadata():
     project_name: str
     sosi_path: str
     image_folder_path: str
+    last_processed_image_index: int
 
     @classmethod
     def from_row(cls, row: tuple):

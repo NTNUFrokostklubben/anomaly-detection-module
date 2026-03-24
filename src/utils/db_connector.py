@@ -162,8 +162,28 @@ class DbConnector:
             self.commit()
             return True
         except Exception as e:
-            print(e)
             return False
+
+    def increment_project_image_intex(self, project_name: str):
+        """
+        Updates the last processed image index for a given project name
+
+        Args:
+            project_name: Project name to increment last processed image index
+
+        Returns:
+            True or False
+        """
+        try:
+            cursor = self._conn.cursor()
+            cursor.execute("""
+                UPDATE projects SET last_processed_image_index = last_processed_image_index + 1 WHERE project_name = ?
+            """, (project_name,))
+            self.commit()
+            return True
+        except Exception as e:
+            return False
+
 
     def get_project(self, project_name: str) -> ProjectMetadata:
         """
@@ -179,7 +199,7 @@ class DbConnector:
         try:
             cursor = self._conn.cursor();
             cursor.execute("""
-                SELECT project_name, sosi_path, image_folder_path FROM projects WHERE project_name = ?
+                SELECT * FROM projects WHERE project_name = ?
             """, (project_name,))
             return ProjectMetadata.from_row(cursor.fetchone())
         except:
