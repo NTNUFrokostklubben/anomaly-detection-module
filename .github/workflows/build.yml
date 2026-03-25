@@ -1,24 +1,59 @@
 # Linux build has been commented out for the time being as the sosi bundle only works on windows.
 # Based on Tiler build yml
 # TODO: Implement SOSI bundling step for linux and building
-
-name: build-test
-
-on:
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
-
-
-jobs:
-#  linux-build:
+#
+#name: build-test
+#
+#on:
+#  pull_request:
+#    types:
+#      - opened
+#      - synchronize
+#      - reopened
+#      - ready_for_review
+#
+#
+#jobs:
+##  linux-build:
+##    if: ${{ !github.event.pull_request.draft }}
+##    runs-on: ubuntu-latest
+##    steps:
+##      - uses: actions/checkout@v4
+##      - name: Install Miniforge
+##        uses: conda-incubator/setup-miniconda@v3
+##        with:
+##          miniforge-version: latest
+##          activate-environment: base
+##          auto-update-conda: true
+##
+##      - name: Install conda-lock
+##        shell: bash -l {0}
+##        run: conda install -n base -c conda-forge conda-lock
+##
+##      - name: Create build environment
+##        shell: bash -l {0}
+##        run: conda-lock install --prefix ./env
+##
+##      - name: Install local package
+##        run: ./env/bin/python -m pip install -e .
+##
+##      - name: Build binary
+##        run: ./env/bin/pyinstaller server.spec
+##
+##      - name: Run server startup test
+##        run: |
+##          ./dist/server/skavl-tiler &
+##          SERVER_PID=$!
+##          sleep 6
+##          kill $SERVER_PID
+#
+#  windows-build:
 #    if: ${{ !github.event.pull_request.draft }}
-#    runs-on: ubuntu-latest
+#    runs-on: windows-latest
+#
 #    steps:
 #      - uses: actions/checkout@v4
+#
 #      - name: Install Miniforge
 #        uses: conda-incubator/setup-miniconda@v3
 #        with:
@@ -27,96 +62,61 @@ jobs:
 #          auto-update-conda: true
 #
 #      - name: Install conda-lock
-#        shell: bash -l {0}
 #        run: conda install -n base -c conda-forge conda-lock
 #
 #      - name: Create build environment
-#        shell: bash -l {0}
-#        run: conda-lock install --prefix ./env
+#        run: conda-lock install --prefix ${{ github.workspace }}/env
 #
 #      - name: Install local package
-#        run: ./env/bin/python -m pip install -e .
+#        shell: pwsh
+#        run: conda run --prefix ./env pip install -e .
+#
+#      - name: Fetch sosi bundle (windows)
+#        shell: pwsh
+#        run: .\scripts\fetch_gdal_bundle_win.ps1
+#
+#      - name: Fetch test data
+#        shell: pwsh
+#        run: .\scripts\fetch_test_data.ps1
 #
 #      - name: Build binary
-#        run: ./env/bin/pyinstaller server.spec
+#        shell: pwsh
+#        run: conda run --prefix ./env pyinstaller server.spec
 #
-#      - name: Run server startup test
+#      # CV2 uses absolute paths due to its python bindings. This is a workaround we found that changes the bindings to use
+#      # relative paths instead.
+#      - name: Fix cv2 config paths
+#        shell: pwsh
 #        run: |
-#          ./dist/server/skavl-tiler &
-#          SERVER_PID=$!
-#          sleep 6
-#          kill $SERVER_PID
-
-  windows-build:
-    if: ${{ !github.event.pull_request.draft }}
-    runs-on: windows-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Miniforge
-        uses: conda-incubator/setup-miniconda@v3
-        with:
-          miniforge-version: latest
-          activate-environment: base
-          auto-update-conda: true
-
-      - name: Install conda-lock
-        run: conda install -n base -c conda-forge conda-lock
-
-      - name: Create build environment
-        run: conda-lock install --prefix ${{ github.workspace }}/env
-
-      - name: Install local package
-        shell: pwsh
-        run: conda run --prefix ./env pip install -e .
-
-      - name: Fetch sosi bundle (windows)
-        shell: pwsh
-        run: .\scripts\fetch_gdal_bundle_win.ps1
-
-      - name: Fetch test data
-        shell: pwsh
-        run: .\scripts\fetch_test_data.ps1
-
-      - name: Build binary
-        shell: pwsh
-        run: conda run --prefix ./env pyinstaller server.spec
-
-      # CV2 uses absolute paths due to its python bindings. This is a workaround we found that changes the bindings to use
-      # relative paths instead.
-      - name: Fix cv2 config paths
-        shell: pwsh
-        run: |
-          @"
-          PYTHON_EXTENSIONS_PATHS = [
-              os.path.join(os.path.dirname(os.path.abspath(__file__)), 'python-3.12')
-          ] + PYTHON_EXTENSIONS_PATHS
-          "@ | Set-Content dist/server/cv2/config-3.12.py
-          
-          @"
-          import os
-          BINARIES_PATHS = [
-              os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-          ] + BINARIES_PATHS
-          "@ | Set-Content dist/server/cv2/config.py
-
-      - name: Smoke test
-        shell: pwsh
-        run: |
-          $sosi = Join-Path $pwd "test_data" "TEST-001_Vertikalbilde.sos"
-          $images = Join-Path $pwd "test_data" "images"
-          New-Item -ItemType Directory -Path "dist/test_data" -Force | Out-Null
-          $output = & dist/server/skavl-anomaly-detection-server.exe `
-            --sosi-input $sosi `
-            --image-path $images 2>&1 | Out-String
-          Write-Host $output
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Smoke test failed with exit code $LASTEXITCODE"
-            exit 1
-          }
-          if ($output -notmatch "Found 3 images in the GeoPackage") {
-            Write-Error "Smoke test failed: expected 'Found 3 images in the GeoPackage' in output"
-            exit 1
-          }
-          Write-Host "Smoke test passed."
+#          @"
+#          PYTHON_EXTENSIONS_PATHS = [
+#              os.path.join(os.path.dirname(os.path.abspath(__file__)), 'python-3.12')
+#          ] + PYTHON_EXTENSIONS_PATHS
+#          "@ | Set-Content dist/server/cv2/config-3.12.py
+#
+#          @"
+#          import os
+#          BINARIES_PATHS = [
+#              os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+#          ] + BINARIES_PATHS
+#          "@ | Set-Content dist/server/cv2/config.py
+#
+#      - name: Smoke test
+#        shell: pwsh
+#        run: |
+#          $sosi = Join-Path $pwd "test_data" "TEST-001_Vertikalbilde.sos"
+#          $images = Join-Path $pwd "test_data" "images"
+#          New-Item -ItemType Directory -Path "dist/test_data" -Force | Out-Null
+#          $output = & dist/server/skavl-anomaly-detection-server.exe `
+#            --sosi-input $sosi `
+#            --image-path $images 2>&1 | Out-String
+#          Write-Host $output
+#          if ($LASTEXITCODE -ne 0) {
+#            Write-Error "Smoke test failed with exit code $LASTEXITCODE"
+#            exit 1
+#          }
+#          if ($output -notmatch "Found 3 images in the GeoPackage") {
+#            Write-Error "Smoke test failed: expected 'Found 3 images in the GeoPackage' in output"
+#            exit 1
+#          }
+#          Write-Host "Smoke test passed."

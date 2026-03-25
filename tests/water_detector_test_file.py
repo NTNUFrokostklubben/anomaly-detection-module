@@ -10,6 +10,7 @@ import tifffile as tf
 import numpy as np
 from osgeo import gdal
 import geopandas as gpd
+from utils.io_tools import load_geotiff_dataset
 
 def run_all_images():
     """
@@ -58,7 +59,7 @@ def run_all_images():
 
 
 
-def main():
+def test_main():
     """
     Function for testing water mask creation, left here incase anyone else wants to test how water mask creation works.
     :return:
@@ -66,30 +67,30 @@ def main():
 
     gdal.DontUseExceptions()
     contour_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\Vann_22.gpkg"
-    #sosi_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\HX-14365_Vertikalbilde.gpkg"
-    sosi_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\HX-13173_Vertikalbilde.gpkg"
+    sosi_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\HX-14365_Vertikalbilde.gpkg"
+    #sosi_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\HX-13173_Vertikalbilde.gpkg"
     #img_name = "HX-14365_073_014_14835.tif"
     #img_name = "HX-14365_073_047_14868.tif"
-    #img_name = "HX-14365_073_001_14822.tif"
-    img_name = "HX-13173_112_005_5550.tif"
+    img_name = "HX-14365_073_001_14822.tif"
+   # img_name = "HX-13173_112_005_5550.tif"
     #folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images"
     #wd.run_all_images(folder, contour_path, sosi_path, 30)
-    gdf: gp.GeoDataFrame = gpd.read_file(contour_path, layer="polygons")
-    sosidf: gp.GeoDataFrame = gpd.read_file(sosi_path, layer="polygons")
+    gdf: gp.GeoDataFrame = gpd.read_file(contour_path, layer="polygons", encoding="ISO-8859-1")
+    sosidf: gp.GeoDataFrame = gpd.read_file(sosi_path, layer="polygons", encoding="ISO-8859-1")
 
+   # img_arr = tf.imread(
+      # r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\\" + img_name,
+       # maxworkers=8)
     img_arr = tf.imread(
-       r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\\" + img_name,
-        maxworkers=8)
-    #img_arr = tf.imread(
-    #      r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\" + img_name,
-     #    maxworkers=8)
+          r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\" + img_name,
+         maxworkers=8)
 
 
     img_arr = np.ascontiguousarray(img_arr.transpose(2, 0, 1))
-    ds = wd.load_geotiff_dataset(
-        r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\\"+ img_name)
-    # ds = load_geotiff_dataset(
-    # r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\"+ img_name)
+    #ds = load_geotiff_dataset(
+    #    r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\\"+ img_name)
+    ds = load_geotiff_dataset(
+        r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\"+ img_name)
     # img_arr = np.ascontiguousarray(img_arr.transpose(2, 0, 1))
 
     before = datetime.now()

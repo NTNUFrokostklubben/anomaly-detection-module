@@ -31,7 +31,7 @@ def get_gdf_content(gpkg_path: Path) -> gpd.GeoDataFrame:
     gdf = gpd.read_file(gpkg_path, layer="polygons", encoding="ISO-8859-1")
     return gdf
 
-def load_geotiff_dataset(path: str) ->  gdal.Dataset:
+def load_geotiff_dataset(path: str | Path) ->  gdal.Dataset:
     """
     Load geotiff image into memory. Temporary function
 
@@ -39,17 +39,31 @@ def load_geotiff_dataset(path: str) ->  gdal.Dataset:
     :return: the gdal dataset.
     """
     ds = gdal.OpenEx(path)
+    if ds is None:
+        raise ValueError(f"Could not open image: {path}")
     return ds
 
-def read_tiff_fast(path) -> np.ndarray[tuple[int, int, int]]:
+def read_tiff_fast(path, *, series: int = None, level: int = None) -> np.ndarray[tuple[int, int, int]]:
     """
     Fast reading of large tiff image using tifffile with turbojpeg. No metadata included, for that use
     `load_geotiff_dataset`. Transposes images to be (Bands, H,W) from (H,W, Bands) since code base already uses that
      format. Also slices away any extra bands outside RGB, since some image manipulation software adds alpha channel band.
+    :param level: The level of the image, higher number is lower resolution, 0 is full size.
+    :param series: Related images in the same file, only use this if you know what you are doing
     :param path: path to the tiff image.
     :return: the image as array in shape(bands, H, W).
     """
-    img = tf.imread(path, maxworkers=8)
+
+    if series is not None:
+        if level is not None:
+            img = tf.imread(path, maxworkers=8, series=series, level=level)
+        else:
+            img = tf.imread(path, maxworkers=8, series=series)
+    elif level is not None:
+        img = tf.imread(path, maxworkers=8, level=level)
+    else:
+        img = tf.imread(path, maxworkers=8)
+
     return np.transpose(img[:, :, :3], (2, 0, 1))
 
 def count_images_in_folder(path) -> int:

@@ -57,7 +57,7 @@ class DbConnector:
                 print(e)
 
 
-    def add_image(self, img_file_name):
+    def add_image(self, img_file_name) -> bool:
         """
         Add an image to the database. Contains no image data, just metadata.
         :param img_file_name: the file name of the image.
@@ -91,7 +91,7 @@ class DbConnector:
                 self.add_image(img_file_name)
 
             cursor.execute("""
-                           INSERT INTO artifact_datapoints(img_id, dtype, shape, offset, data) VALUES(?, ?, ?, ?, ?)
+                           INSERT OR REPLACE INTO artifact_datapoints(img_id, dtype, shape, offset, data) VALUES(?, ?, ?, ?, ?)
                            """,(img_file_name, str(data.dtype), str(data.shape), offset, blob))
 
             self.commit()
@@ -100,7 +100,7 @@ class DbConnector:
             print(e)
             return False
 
-    def add_artifact_candidate(self, img_file_name: str, color: float, diff: float, offset: int, coords: tuple[int, int]):
+    def add_artifact_candidate(self, img_file_name: str, color: float, diff: float, offset: int, coords: tuple[int, int]) -> bool:
         """
         Add an artifact candidate to the database.
         :param img_file_name: The file name of the image.
@@ -120,11 +120,12 @@ class DbConnector:
                            VALUES(?, ?, ?, ?, ?, ?)""",
                            (coords[0],coords[1],img_file_name,color,diff,offset))
             self.commit()
+            return True
         except sql.DatabaseError as e:
             print(e)
             return False
 
-    def delete_artifact_data_line(self, prefix: str, line: int):
+    def delete_artifact_data_line(self, prefix: str, line: int) -> bool:
         """
         Delete the artifact data line from the database.
         :param prefix: the prefix of the artifact data.
@@ -204,6 +205,29 @@ class DbConnector:
             return ProjectMetadata.from_row(cursor.fetchone())
         except:
             return None
+
+    def get_artifact_data_line(self, prefix: str, line: int)-> list[np.ndarray] | None:
+
+        """
+        Get the computed artifact data for a line from the database.
+        :param prefix: the prefix of the artifact data.
+        :param line:   the line of the artifact data to get.
+        :return: the computed artifact data for the line from the database.
+        """
+        try:
+            cursor = self._conn.cursor()
+            rows = cursor.execute("""
+                            SELECT dtype, shape, data
+                            FROM artifact_datapoints
+                            WHERE img_id IN (
+                                SELECT img_id FROM images
+                                WHERE line = ? AND prefix = ?)
+                           """, (line, prefix,))
+            self.commit()
+            return [np.frombuffer(r[2], dtype=r[0]).reshape(eval(r[1])) for r in rows]
+        except sql.DatabaseError:
+            return None
+
 
     def commit(self):
         """
