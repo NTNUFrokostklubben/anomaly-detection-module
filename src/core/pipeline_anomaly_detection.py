@@ -38,6 +38,7 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i:int, arr1: np.ndarr
     print(f"Image {gdf.iloc[i + 1]['bildenummer']} avg: {avg2}")
     print(f"Difference: {diff}")
     print(f"Difference normalised: {diff/255}")
+    print(f"Confidence level: {confidence_level}")
     print(f"Time analysis: {t:.6f}s\n")
 
 def start_anomaly_analysis(gdf, image_folder_path: Path):
