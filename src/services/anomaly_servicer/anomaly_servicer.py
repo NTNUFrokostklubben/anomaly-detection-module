@@ -53,7 +53,7 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
                 images_in_folder=count_images_in_folder(image_folder_path)
             )
 
-        if (self.db_connection.add_project(project_name, sosi_file_path, image_folder_path)):
+        if self.db_connection.add_project(project_name, sosi_file_path, image_folder_path):
             return anomaly_pb2.DescribeAnomalyProjectResponse(
                 project_metadata=anomaly_pb2.ProjectMetadata(
                     project_name=project_name,
@@ -62,8 +62,10 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
                 ),
                 last_processed_image=0,
                 images_in_folder=count_images_in_folder(image_folder_path)
-            );
+            )
+
         context.abort(grpc.StatusCode.NOT_FOUND, "Project Metadata not found or could not be added")
+        return None
 
     def DetectAnomalySet(self, request, context):
         """
@@ -91,7 +93,7 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
         gpgk_path = Path(__file__).parent.parent / "test_data" / converted_sosi
 
         gdf = get_gdf_content(gpgk_path)
-        start_anomaly_analysis(gdf, image_folder_path)
+        start_anomaly_analysis(gdf)
 
         print("AnomalyServiceServicer.DetectAnomalySet")
 
