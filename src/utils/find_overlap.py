@@ -1,7 +1,7 @@
 from pathlib import Path
 import geopandas as gpd
 import numpy as np
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, MultiPolygon
 from skimage.transform import AffineTransform
 
 def find_image_row(gdf: gpd.GeoDataFrame, img_num: int, strip_num: int):
@@ -45,8 +45,8 @@ def find_image_row_img_name(gdf: gpd.GeoDataFrame , img_name: str):
 
     if matches.empty:
         raise ValueError(f"Image with name {img_name} not found")
-
-    return matches.iloc[0]
+    row = matches.iloc[0]
+    return row
 
 
 
@@ -70,20 +70,22 @@ def find_image_from_gpkg(gdf: gpd.GeoDataFrame, img_num: int, strip_num: int) ->
 
     return poly, width, height
 
-def build_transform_from_polygon(poly: Polygon, width: int, height: int) -> AffineTransform :
+def build_transform_from_polygon(poly: Polygon | MultiPolygon, width: int, height: int) -> AffineTransform:
     """
     Build affine transform from world coordinates -> pixel coordinates
     Assumes poly.exterior.coords order:
     [bottom-right, top-right, top-left, bottom-left]
-    
+
     Args:
-        poly (Polygon): polygon geometry for the image footprint
+        poly (Polygon | MultiPolygon): polygon geometry for the image footprint
         width (int): width of the image in pixels
         height (int): height of the image in pixels
 
     Returns:
         AffineTransform object that maps world coordinates to pixel coordinates
     """
+    if isinstance(poly, MultiPolygon):
+        poly = poly.geoms[0]
 
     world_coords = np.array(poly.exterior.coords[:-1])  # remove duplicate last point
     if len(world_coords) != 4:
@@ -167,7 +169,8 @@ def get_overlap_pixel_images(gdf: gpd.GeoDataFrame, img1_num: int, strip1: int, 
     tform2 = build_transform_from_polygon(poly2, width2, height2)
 
     # Convert overlap polygon to pixel space
-    overlap_coords = np.array(overlap_world.exterior.coords)
+    overlap_geom = overlap_world.geoms[0] if isinstance(overlap_world, MultiPolygon) else overlap_world
+    overlap_coords = np.array(overlap_geom.exterior.coords)
 
     # After transforming the overlap polygon
     overlap_px1 = tform1(overlap_coords)

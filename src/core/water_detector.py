@@ -62,7 +62,7 @@ def _block_has_mask(polygon_mask: np.ndarray, y_start: int, y_end: int, x_start:
 
 
 @njit(cache=True)
-def block_mean_rgb(data: np.ndarray, y_start: int, y_end: int, x_start: int, x_end: int, polygon_mask: np.ndarray) -> tuple:
+def block_mean_rgb(data: np.ndarray, y_start: int, y_end: int, x_start: int, x_end: int, polygon_mask: np.ndarray | None) -> tuple:
     """
     Computes the mean normalised RGB values for all pixels within the block, optional mask check.
 
@@ -166,7 +166,7 @@ def _fill_block(mask: np.ndarray, polygon_mask: np.ndarray, y_start: int, y_end:
 
 
 @njit(parallel=True, cache=True)
-def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int, *, constraint_region: np.ndarray[tuple[bool, bool]]) -> np.ndarray:
+def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int, *, constraint_region: np.ndarray[tuple[bool]]) -> np.ndarray:
     """
     Create a mask outlining the water on an image using a jumping block algorithm. Optionally allows for looking
      only within a constrained region of the full image.

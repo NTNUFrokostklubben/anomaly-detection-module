@@ -41,17 +41,25 @@ def detect_artifact_consistency(images: list[image.Image], increment: int) -> np
 
     :param images: list of image objects, Must contain at least img_arr and img_id
     :param increment: block size in pixels, total pixels is increment squared.
-    :return: 1D array of per-block consistency scores. Low values indicate likely artifacts.
+    :return: 1D array of per-block consistency scores across all images on the line.
+             Low values (near 0) indicate the block has the same color across all images — likely an artifact.
+             High values indicate the block varies across images — genuine scene content.
     """
 
 
     conn = db.DbConnector()
-
+    line_values = conn.get_artifact_data_line(images[0].prefix, images[0].line)
+    if line_values is None and len(images) < 2:
+        return None
     for img in images:
         data = calculate_average_color_block(img.img_arr, increment)
         img.artifact_data = image.ArtifactData( data=data,dtype=data.dtype ,shape=data.shape,offset=increment )
         conn.add_artifact_data(img.img_id,data=img.artifact_data.data, offset= increment )
 
-    block_means = np.stack([img.artifact_data.data for img in images])
-    return (block_means.max(axis=0) - block_means.min(axis=0)).sum(axis=1) / 3.0
+    all_data = line_values + [img.artifact_data.data for img in images]
+    if len(all_data) < 10:
+        return None
+
+    stacked = np.stack(all_data)                                        # (N, num_blocks, 3)
+    return (stacked.max(axis=0) - stacked.min(axis=0)).sum(axis=1) / 3.0  # (num_blocks,)
 

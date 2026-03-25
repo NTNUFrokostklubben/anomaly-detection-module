@@ -7,6 +7,13 @@ from utils.db_connector import DbConnector
 from utils.io_tools import read_tiff_fast
 from utils.string_manip import slice_image_name
 
+_TEST_IMG_ID = "HX-14365_073_001_14822.tif"
+_TEST_PREFIX, _TEST_LINE, _, _TEST_ABS_BASE = slice_image_name(_TEST_IMG_ID)
+
+
+def _img_id(line_number: int) -> str:
+    return f"{_TEST_PREFIX}_{_TEST_LINE:03d}_{line_number:03d}_{_TEST_ABS_BASE + line_number - 1}.tif"
+
 
 @pytest.fixture(autouse=True)
 def reset_db_singleton():
@@ -21,10 +28,15 @@ def reset_db_singleton():
     DbConnector._db_file = "database.db"
 
 
-def make_image(img_id="HX-14365_073_001_14822.tif", bands=3, height=10, width=10, value=128):
+def make_image(img_id=_TEST_IMG_ID, bands=3, height=10, width=10, value=128):
     """Helper to create an Image with a uniform array (Band, H, W)."""
     arr = np.full((bands, height, width), value, dtype=np.uint8)
     return Image(img_id=img_id, prefix=None, line=None, line_number=None, abs_number=None, img_arr=arr)
+
+
+def _make_images(value, count=10):
+    """Create `count` images with the given uniform pixel value."""
+    return [make_image(img_id=_img_id(i), value=value) for i in range(1, count + 1)]
 
 
 def test_calculate_average_color_block_output_length():
@@ -46,12 +58,7 @@ def test_calculate_average_color_block_uniform_image():
 
 def test_detect_artifact_consistency_identical_images():
     """Identical images should score 0 for all blocks (perfectly consistent)."""
-    img = make_image(value=100)
-    images = [
-        make_image(img_id="HX-14365_073_001_14822.tif", value=100),
-        make_image(img_id="HX-14365_073_002_14823.tif", value=100),
-        make_image(img_id="HX-14365_073_003_14824.tif", value=100),
-    ]
+    images = _make_images(value=100)
     result = detect_artifact_consistency(images, increment=5)
     assert isinstance(result, np.ndarray)
     assert np.all(result == 0.0)
@@ -59,11 +66,7 @@ def test_detect_artifact_consistency_identical_images():
 
 def test_detect_artifact_consistency_different_images():
     """Varying images should score higher than identical images."""
-    images = [
-        make_image(img_id="HX-14365_073_001_14822.tif", value=50),
-        make_image(img_id="HX-14365_073_002_14823.tif", value=150),
-        make_image(img_id="HX-14365_073_003_14824.tif", value=200),
-    ]
+    images = [make_image(img_id=_img_id(i), value=50 + i * 15) for i in range(1, 11)]
     result = detect_artifact_consistency(images, increment=5)
     assert isinstance(result, np.ndarray)
     assert np.all(result > 0.0)
@@ -71,12 +74,10 @@ def test_detect_artifact_consistency_different_images():
 
 def test_detect_artifact_consistency_mixed():
     """Artifact block (same across images) scores lower than varying block."""
-    images = [
-        make_image(img_id="HX-14365_073_001_14822.tif", value=100),
-        make_image(img_id="HX-14365_073_002_14823.tif", value=100),
-        make_image(img_id="HX-14365_073_003_14824.tif", value=100),
-    ]
+    images = _make_images(value=100)
     artifact_scores = detect_artifact_consistency(images, increment=5)
+
+    DbConnector().delete_artifact_data_line(_TEST_PREFIX, _TEST_LINE)
 
     images[1].img_arr[:, :5, :5] = 200
     images[2].img_arr[:, :5, :5] = 50
