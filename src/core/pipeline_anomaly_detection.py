@@ -98,9 +98,9 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, water_gdf, image_folder_p
         print(f"Comparing image {sosi_gdf.iloc[i]['bildenummer']} and image {sosi_gdf.iloc[i + 1]['bildenummer']}")
         print(f"Loading images to arr : {t_load:.6f}s \n")
 
-        start_color_difference_analysis(sosi_gdf, i, arr1, arr2)
         start_water_detection_analysis(image1, sosi_gdf, water_gdf)
         start_artifact_detection_analysis(image1, 100)
+        start_color_difference_analysis(sosi_gdf, i, arr1, arr2)
 
         print("\n")
 
