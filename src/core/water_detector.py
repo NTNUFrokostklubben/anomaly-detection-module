@@ -326,6 +326,39 @@ def detect_holes(mask: ndarray[tuple[bool, bool]]) -> ndarray[tuple[int, int]]:
 
 
 
+def _affine_from_sosi_polygon(geom, width: int, height: int) -> Affine:
+    """
+    Derives a synthetic affine transform (pixel → geo) from a SOSI image boundary polygon.
+    Used as a fallback when the raster has no embedded geotransform.
+
+    Assumes SOSI polygon corner order: [bottom-right, top-right, top-left, bottom-left],
+    consistent with build_transform_from_polygon in find_overlap.py.
+
+    :param geom: Shapely Polygon or MultiPolygon representing the image footprint.
+    :param width: image width in pixels.
+    :param height: image height in pixels.
+    :return: Affine transform mapping pixel (col, row) to geographic (x, y).
+    """
+    poly = geom.geoms[0] if isinstance(geom, MultiPolygon) else geom
+    coords = list(poly.exterior.coords)[:-1]
+    if len(coords) != 4:
+        raise ValueError("Image boundary polygon must have exactly 4 corners to derive affine.")
+
+    # SOSI corner order: [0]=BR, [1]=TR, [2]=TL, [3]=BL
+    tl = coords[2]  # → pixel (0, 0)
+    tr = coords[1]  # → pixel (width, 0)
+    bl = coords[3]  # → pixel (0, height)
+
+    a = (tr[0] - tl[0]) / width
+    b = (bl[0] - tl[0]) / height
+    c = tl[0]
+    d = (tr[1] - tl[1]) / width
+    e = (bl[1] - tl[1]) / height
+    f = tl[1]
+
+    return Affine(a, b, c, d, e, f)
+
+
 def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataFrame, img_name: str, ds: gdal.Dataset) -> np.ndarray:
     """
     Builds a water mask for the given image by aligning water contours from a GeoPackage
@@ -337,21 +370,22 @@ def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataF
     :param ds: GDAL dataset of the raster image.
     :return: Boolean mask array of shape (height, width), True where water is present.
     """
-
-    raster_crs = ds.GetProjection()
-    if not raster_crs:
-        raise RuntimeError("Raster has no CRS; can't align vectors.")
-
-    contour_gdf = contour_gdf.to_crs(raster_crs)
-    sosi_df = sosi_df.to_crs(raster_crs)
-
-    gt = ds.GetGeoTransform()
     width = ds.RasterXSize
     height = ds.RasterYSize
-    affine = Affine.from_gdal(*gt)
+
+    raster_crs = ds.GetProjection()
+    if raster_crs:
+        contour_gdf = contour_gdf.to_crs(raster_crs)
+        sosi_df = sosi_df.to_crs(raster_crs)
+        affine = Affine.from_gdal(*ds.GetGeoTransform())
+    else:
+        row = fo.find_image_row_img_name(sosi_df, img_name)
+        affine = _affine_from_sosi_polygon(row['geometry'], width, height)
+
     inv_affine = ~affine
 
-    row = fo.find_image_row_img_name(sosi_df, img_name)
+    if raster_crs:
+        row = fo.find_image_row_img_name(sosi_df, img_name)
     overlap = contour_gdf['geometry'].intersects(row['geometry'])
 
     sosi_corners_flat = [
