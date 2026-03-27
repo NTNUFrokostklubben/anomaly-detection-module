@@ -47,14 +47,16 @@ class AnomalyResponse(_message.Message):
     def __init__(self, project_metadata: _Optional[_Union[ProjectMetadata, _Mapping]] = ..., last_processed_index: _Optional[int] = ..., anomaly_sets: _Optional[_Iterable[_Union[AnomalySet, _Mapping]]] = ...) -> None: ...
 
 class ProjectMetadata(_message.Message):
-    __slots__ = ("project_name", "sosi_file_path", "image_folder_path")
+    __slots__ = ("project_name", "sosi_file_path", "image_folder_path", "sosi_water_mask_path")
     PROJECT_NAME_FIELD_NUMBER: _ClassVar[int]
     SOSI_FILE_PATH_FIELD_NUMBER: _ClassVar[int]
     IMAGE_FOLDER_PATH_FIELD_NUMBER: _ClassVar[int]
+    SOSI_WATER_MASK_PATH_FIELD_NUMBER: _ClassVar[int]
     project_name: str
     sosi_file_path: str
     image_folder_path: str
-    def __init__(self, project_name: _Optional[str] = ..., sosi_file_path: _Optional[str] = ..., image_folder_path: _Optional[str] = ...) -> None: ...
+    sosi_water_mask_path: str
+    def __init__(self, project_name: _Optional[str] = ..., sosi_file_path: _Optional[str] = ..., image_folder_path: _Optional[str] = ..., sosi_water_mask_path: _Optional[str] = ...) -> None: ...
 
 class DescribeAnomalyProjectRequest(_message.Message):
     __slots__ = ("project_metadata",)
