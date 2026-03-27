@@ -22,41 +22,41 @@ def set_confidence_level(diff: float) -> float:
 
     return float("{:.3f}".format(result))
 
-def color_average_overlap(ds_arr: np.ndarray, bounds:tuple[float, float, float, float]) -> float:
+def color_average_overlap(img_arr: np.ndarray, bounds:tuple[float, float, float, float]) -> float:
     """Calculate the average colour value of a GDAL dataset for a specific overlapping region defined by bounds.
     Args:
-        ds_arr (np.ndarray): Array representation of the image dataset
+        img_arr (np.ndarray): Array representation of the image
         bounds (tuple): Bounds for the overlapping region in pixel coordinates, as tuples (min_x, max_x, min_y, max_y)
     Returns:
         float: Average colour value for the overlapping region, rounded to 5 decimal places
     """    
     min_x, max_x, min_y, max_y = bounds
     
-    ds_arr = ds_arr[:, min_y:max_y, min_x:max_x]
+    img_arr = img_arr[:, min_y:max_y, min_x:max_x]
 
-    mean_arr = ds_arr.mean()
+    mean_arr = img_arr.mean()
     return round(float(mean_arr), 5)
 
 
-def overlap_color_difference(ds_arr1: np.ndarray, 
-                             ds_arr2: np.ndarray, 
-                             bounds1: tuple[float, float, float, float], 
+def overlap_color_difference(img_arr1: np.ndarray,
+                             img_arr2: np.ndarray,
+                             bounds1: tuple[float, float, float, float],
                              bounds2: tuple[float, float, float, float]
                              ) -> tuple[float, float, float]:
     """
     Compute colour difference between overlapping image regions
     
     Args:
-        ds_arr1 (np.ndarray): first image dataset
-        ds_arr2 (np.ndarray): second image dataset
+        img_arr1 (np.ndarray): first image array
+        img_arr2 (np.ndarray): second image array
         bounds1 (tuple): bounds for the overlapping region in the first image (min_x, max_x, min_y, max_y)
         bounds2 (tuple): bounds for the overlapping region in the second image (min_x, max_x, min_y, max_y)
     Returns:
         tuple: (avg1, avg2, diff) where avg1 and avg2 are the average brightness values, and diff is the absolute difference between them    
     """
     
-    avg1 = color_average_overlap(ds_arr1, bounds1)
-    avg2 = color_average_overlap(ds_arr2, bounds2)
+    avg1 = color_average_overlap(img_arr1, bounds1)
+    avg2 = color_average_overlap(img_arr2, bounds2)
     diff = abs(avg1 - avg2)
 
     return avg1, avg2, diff

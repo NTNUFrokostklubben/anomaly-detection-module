@@ -1,7 +1,7 @@
 from osgeo import gdal
 import numpy as np
 from pathlib import Path
-from utils.io_tools import read_tiff_fast, load_geotiff_dataset
+from utils.io_tools import read_tiff_fast, load_tiff_dataset
 from os import path
 
 class ImageCache:
@@ -38,7 +38,7 @@ class ImageCache:
             Array of the image.
         """
         img_path = img_path.resolve()
-        ds = load_geotiff_dataset(img_path)
+        ds = load_tiff_dataset(img_path)
         # When img_path is in the cache
         img_path = str(img_path) + "_" + str(level)
         if img_path in self._cache:

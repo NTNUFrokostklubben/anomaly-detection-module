@@ -10,7 +10,7 @@ import tifffile as tf
 import numpy as np
 from osgeo import gdal
 import geopandas as gpd
-from utils.io_tools import load_geotiff_dataset
+from utils.io_tools import load_tiff_dataset
 
 def run_all_images():
     """
@@ -89,7 +89,7 @@ def test_main():
     img_arr = np.ascontiguousarray(img_arr.transpose(2, 0, 1))
     #ds = load_geotiff_dataset(
     #    r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\\"+ img_name)
-    ds = load_geotiff_dataset(
+    ds = load_tiff_dataset(
         r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\"+ img_name)
     # img_arr = np.ascontiguousarray(img_arr.transpose(2, 0, 1))
 
