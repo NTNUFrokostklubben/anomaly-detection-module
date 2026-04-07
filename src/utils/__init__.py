@@ -10,7 +10,7 @@ from utils.find_overlap import (
 from utils.io_tools import (
     convert_sosi_get_gdf,
     get_gdf_content,
-    load_geotiff_dataset,
+    load_tiff_dataset,
     read_tiff_fast,
     count_images_in_folder,
 )

@@ -6,7 +6,7 @@ from pathlib import Path
 from entity.anomaly.ProjectMetadata import ProjectMetadata
 from utils.string_manip import slice_image_name
 import numpy as np
-
+from entity.enums.analysis_t import AnalysisType
 
 class DbConnector:
     """
@@ -17,9 +17,9 @@ class DbConnector:
 
     """
     _instance = None  # Class variable to store the single instance
-    _conn = None  # holds the database connection.
-    _sql_file = Path(__file__).parent / 'schema.sql'  # Finds path to this files parent, then navigates to schema
-    _db_file = 'database.db'
+    _conn = None        # holds the database connection.
+    _sql_file = Path(__file__).parent / 'schema.sql'     #Finds path to this files parent, then navigates to schema
+    _db_file = Path(__file__).parent.parent.parent / 'database.db'
 
     def __new__(cls, *args, **kwargs):
         """
@@ -221,7 +221,7 @@ class DbConnector:
         Get the computed artifact data for a line from the database.
         :param prefix: the prefix of the artifact data.
         :param line:   the line of the artifact data to get.
-        :return: the computed artifact data for the line from the database.
+        :return: the computed artifact data for the line from the database or None
         """
         try:
             cursor = self._conn.cursor()
@@ -235,6 +235,85 @@ class DbConnector:
                                   """, (line, prefix,))
             self.commit()
             return [np.frombuffer(r[2], dtype=r[0]).reshape(eval(r[1])) for r in rows]
+        except sql.DatabaseError:
+            return None
+
+    def add_analysis(self, img_file_name: str, analysis_type: AnalysisType, confidence_lvl: float  ):
+        """
+        Add an analysis to the database.
+        :param img_file_name:  the file name of the image.
+        :param analysis_type:  the type of analysis to add.
+        :param confidence_lvl: the confidence level of the analysis to add.
+        :return: True for success, False for failure.
+        """
+        try:
+            cursor = self._conn.cursor()
+            img_data = cursor.execute("""SELECT *
+                                         FROM images
+                                         WHERE img_id = ? """, (img_file_name,)).fetchone()
+
+            if img_data is None:
+                self.add_image(img_file_name)
+
+            rows = cursor.execute(""" 
+            REPLACE INTO analysis_data(img_id, analysis_type, confidence) values(?,?,?)  
+                                                        -- Replace into is shorthand for insert or replace.
+                           """, (img_file_name, analysis_type, confidence_lvl))
+            self.commit()
+            return True
+        except sql.DatabaseError:
+            return None
+
+    def get_all_img_over_confidence(self, project:str, confidence: float ) -> list[tuple[str, float]] | None:
+        """
+        Fetch all image file names over a confidence threshold based on project.
+        :param project:
+        :param confidence:
+        :return:
+        """
+        try:
+            cursor = self._conn.cursor()
+            confidence_data = cursor.execute("""
+                                             SELECT a.img_id, MAX(a.confidence) as max_confidence
+                                             FROM analysis_data a
+                                             JOIN images i ON a.img_id = i.img_id
+                                             WHERE i.project = ?
+                                             GROUP BY a.img_id
+                                             HAVING MAX(a.confidence) >= ?
+                                             """, (project, confidence)).fetchall()
+            self.commit()
+            return confidence_data
+        except sql.DatabaseError:
+            return None
+
+    def get_all_analysis_img(self, img_file_name: str) -> list[tuple[AnalysisType, float]] | None:
+        """
+        Fetch all analysis data for an image
+        :param img_file_name:  the file name of the image.
+        :return: the list of analysis data for an image.
+        """
+        try:
+            cursor = self._conn.cursor()
+            analysis_data = cursor.execute("""SELECT analysis_type, confidence FROM analysis_data 
+                                                    WHERE img_id = ?
+                                             """, (img_file_name, )).fetchall()
+            self.commit()
+            return analysis_data
+        except sql.DatabaseError:
+            return None
+    def get_max_confidence_img(self, img_file_name: str) -> float | None:
+        """
+        Get the largest analysis confidence for an image
+        :param img_file_name:  the file name of the image.
+        :return: the largest analysis confidence for an image.
+        """
+        try:
+            cursor = self._conn.cursor()
+            analysis_data = cursor.execute(""" 
+                                           SELECT MAX(confidence) FROM analysis_data WHERE img_id = ?
+                                             """, (img_file_name, )).fetchone()
+            self.commit()
+            return analysis_data[0]
         except sql.DatabaseError:
             return None
 

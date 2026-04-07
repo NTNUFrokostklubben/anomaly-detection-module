@@ -4,6 +4,7 @@ import numpy as np
 from osgeo.gdal import Dataset
 
 import entity.image.Artifact as Art
+from entity.enums.analysis_t import AnalysisType
 from utils.string_manip import slice_image_name
 
 
@@ -19,16 +20,20 @@ class Image:
         line_number: Image index within the flight line (e.g. 1).
         abs_number: Absolute image index across the whole project (e.g. 14822).
         project: Optional project name sourced from SKAVL metadata.
+        max_confidence: Optional maximum confidence value from an analysis (e.g. 0.0).
+        multi_analysis: Optional list of tuples (AnalysisType, confidence).
         artifact_data: Optional artifact detection results associated with this image.
         img_arr: Optional image array in shape (bands, H, W).
         dataset: Optional GDAL dataset for geo-referenced metadata access.
     """
     img_id: str
-    prefix: Optional[str] = None
-    line: Optional[int] = None
-    line_number: Optional[int] = None
-    abs_number: Optional[int] = None
+    prefix: str
+    line: int
+    line_number: int
+    abs_number: int
     project: Optional[str] = None
+    max_confidence: Optional[float] = None
+    multi_analysis: Optional[list[tuple[AnalysisType, float]]] = None
     artifact_data: Optional[Art.ArtifactData] = None
     img_arr: Optional[np.ndarray] = None
     dataset: Optional[Dataset] = None

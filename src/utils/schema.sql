@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS artifact_datapoints(
     data        BLOB NOT NULL,                      -- Data from artifact detecting algorithm.
     FOREIGN KEY (img_id) references images(img_id) ON DELETE CASCADE
 );
+
 CREATE TABLE IF NOT EXISTS artifact_candidates(
     coord_x     INTEGER NOT NULL CHECK (coord_x >= 0),  --  x coordinates for the artifact block
     coord_y     INTEGER NOT NULL CHECK (coord_y >= 0),  --  y coordinates for the artifact block
@@ -33,3 +34,11 @@ CREATE TABLE IF NOT EXISTS projects (
     last_processed_image_index INTEGER DEFAULT 0,
     sosi_water_path TEXT
 );
+
+CREATE TABLE IF NOT EXISTS analysis_data(
+    img_id          TEXT NOT NULL,  --full name of the image e.g. HX-14365_073_001_14822.tif
+    analysis_type   TEXT CHECK( analysis_type in('color_avg', 'water_mask', 'artifact')) NOT NULL, --type of analysis
+    confidence      REAL NOT NULL,       -- the level of confidence of the analysis
+    FOREIGN KEY (img_id) references images(img_id) ON DELETE CASCADE,
+    PRIMARY KEY (img_id, analysis_type)
+)
