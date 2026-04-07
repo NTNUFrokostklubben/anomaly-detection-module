@@ -1,7 +1,7 @@
 import time
 import numpy as np
 import geopandas as gpd
-from src.utils.find_overlap import get_overlap_pixel_images
+from utils.find_overlap import get_overlap_pixel_images
 import math
 
 
