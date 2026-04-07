@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 import core.water_detector as wd
 from numba import prange, njit
@@ -34,7 +36,8 @@ def calculate_average_color_block(img_arr: np.ndarray[tuple[int, int, int]],  in
     return color_values
 
 
-def detect_artifact_consistency(images: list[image.Image], increment: int) -> np.ndarray:
+
+def detect_artifact_consistency(images: list[image.Image], increment: int) -> float | None:
     """
     Detects artifact blocks by measuring color consistency across multiple images.
     A block that stays the same color across all images likely contains an artifact.
@@ -60,6 +63,8 @@ def detect_artifact_consistency(images: list[image.Image], increment: int) -> np
     if len(all_data) < 10:
         return None
 
-    stacked = np.stack(all_data)                                        # (N, num_blocks, 3)
-    return (stacked.max(axis=0) - stacked.min(axis=0)).sum(axis=1) / 3.0  # (num_blocks,)
+    stacked = np.stack(all_data)
+    # (N, num_blocks, 3)
+    consistency = (stacked.max(axis=0) - stacked.min(axis=0)).sum(axis=1) / 3.0  # (num_blocks,)
+    return consistency
 

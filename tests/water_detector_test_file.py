@@ -1,3 +1,4 @@
+from matplotlib import pyplot as plt
 
 import core.water_detector as wd
 
@@ -70,9 +71,9 @@ def test_main():
     sosi_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\HX-14365_Vertikalbilde.gpkg"
     #sosi_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\HX-13173_Vertikalbilde.gpkg"
     #img_name = "HX-14365_073_014_14835.tif"
-    #img_name = "HX-14365_073_047_14868.tif"
-    img_name = "HX-14365_073_001_14822.tif"
-   # img_name = "HX-13173_112_005_5550.tif"
+    img_name = "HX-14365_073_006_14827.tif"
+    #img_name = "HX-14365_073_001_14822.tif"
+    #img_name = "HX-13173_112_005_5550.tif"
     #folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images"
     #wd.run_all_images(folder, contour_path, sosi_path, 30)
     gdf: gp.GeoDataFrame = gpd.read_file(contour_path, layer="polygons", encoding="ISO-8859-1")
@@ -97,6 +98,8 @@ def test_main():
     polygon_mask = wd.create_water_polygon_mask(gdf, sosidf, img_name, ds)
     polygon_mask = wd.clean_water_mask(polygon_mask)
 
+    plt.imshow(polygon_mask)
+    plt.show()
     rows, cols = np.nonzero(polygon_mask)
     polygon_mask = polygon_mask[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
     img_arr = img_arr[:, rows.min():rows.max() + 1, cols.min():cols.max() + 1]
@@ -112,10 +115,14 @@ def test_main():
     print(disagreement_ratio)
 
 
-    #masked_img = img_arr * mask[np.newaxis, ...]
-    #masked_img = np.ascontiguousarray(masked_img.transpose(1, 2, 0))
-    #plt.imshow(masked_img)
-    #plt.show()
+    """masked_img1 = img_arr * polygon_mask[np.newaxis, ...]
+    masked_img1 = np.ascontiguousarray(masked_img1.transpose(1, 2, 0))
+    masked_img2 = img_arr * hsl_mask[np.newaxis, ...]
+    masked_img2 = np.ascontiguousarray(masked_img2.transpose(1, 2, 0))
+    plt.imshow(masked_img1)
+    plt.show()
+    plt.imshow(masked_img2)
+    plt.show()"""
 
 """ rows, cols = np.nonzero(polygon_mask)
     polygon_mask = polygon_mask[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
