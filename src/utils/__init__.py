@@ -12,5 +12,6 @@ from utils.io_tools import (
     get_gdf_content,
     load_tiff_dataset,
     read_tiff_fast,
+    count_images_in_folder,
 )
 from utils.string_manip import slice_image_name

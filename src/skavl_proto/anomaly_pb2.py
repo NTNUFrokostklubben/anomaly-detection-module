@@ -24,31 +24,31 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\ranomaly.proto\x12\x10skavl.anomaly.v1\"2\n\rUtmCoordinate\x12\x0f\n\x07\x65\x61sting\x18\x01 \x01(\x01\x12\x10\n\x08northing\x18\x02 \x01(\x01\"\xa4\x01\n\nAnomalySet\x12\x12\n\nimage_name\x18\x01 \x01(\t\x12\x1a\n\x12\x61nomaly_confidence\x18\x02 \x01(\x01\x12\x13\n\x0bline_number\x18\x03 \x01(\x05\x12\x14\n\x0cimage_number\x18\x04 \x01(\x05\x12;\n\x12geotiff_coordinate\x18\x05 \x01(\x0b\x32\x1f.skavl.anomaly.v1.UtmCoordinate\"\xa0\x01\n\x0f\x41nomalyResponse\x12;\n\x10project_metadata\x18\x01 \x01(\x0b\x32!.skavl.anomaly.v1.ProjectMetadata\x12\x1c\n\x14last_processed_index\x18\x02 \x01(\x05\x12\x32\n\x0c\x61nomaly_sets\x18\x03 \x03(\x0b\x32\x1c.skavl.anomaly.v1.AnomalySet\"Z\n\x0fProjectMetadata\x12\x14\n\x0cproject_name\x18\x01 \x01(\t\x12\x16\n\x0esosi_file_path\x18\x02 \x01(\t\x12\x19\n\x11image_folder_path\x18\x03 \x01(\t\"X\n\x1d\x44\x65scribeAnomalyProjectRequest\x12\x37\n\x0cproject_data\x18\x01 \x01(\x0b\x32!.skavl.anomaly.v1.ProjectMetadata\"\x91\x01\n\x1e\x44\x65scribeAnomalyProjectResponse\x12\x37\n\x0cproject_data\x18\x01 \x01(\x0b\x32!.skavl.anomaly.v1.ProjectMetadata\x12\x18\n\x10images_in_folder\x18\x02 \x01(\x05\x12\x1c\n\x14last_processed_image\x18\x03 \x01(\x05\"\x87\x01\n\x17\x44\x65tectAnomalySetRequest\x12;\n\x10project_metadata\x18\x01 \x01(\x0b\x32!.skavl.anomaly.v1.ProjectMetadata\x12/\n\nstart_mode\x18\x02 \x01(\x0e\x32\x1b.skavl.anomaly.v1.StartMode\"W\n\x18\x44\x65tectAnomalySetResponse\x12;\n\x10\x61nomaly_response\x18\x01 \x01(\x0b\x32!.skavl.anomaly.v1.AnomalyResponse*2\n\tStartMode\x12\x11\n\rSTART_RESTART\x10\x00\x12\x12\n\x0eSTART_CONTINUE\x10\x01\x32\x80\x02\n\x16\x41nomalyDetectorService\x12{\n\x16\x44\x65scribeAnomalyProject\x12/.skavl.anomaly.v1.DescribeAnomalyProjectRequest\x1a\x30.skavl.anomaly.v1.DescribeAnomalyProjectResponse\x12i\n\x10\x44\x65tectAnomalySet\x12).skavl.anomaly.v1.DetectAnomalySetRequest\x1a*.skavl.anomaly.v1.DetectAnomalySetResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\ranomaly.proto\x12\x10skavl.anomaly.v1\"2\n\rUtmCoordinate\x12\x0f\n\x07\x65\x61sting\x18\x01 \x01(\x01\x12\x10\n\x08northing\x18\x02 \x01(\x01\"\xa4\x01\n\nAnomalySet\x12\x12\n\nimage_name\x18\x01 \x01(\t\x12\x1a\n\x12\x61nomaly_confidence\x18\x02 \x01(\x01\x12\x13\n\x0bline_number\x18\x03 \x01(\x05\x12\x14\n\x0cimage_number\x18\x04 \x01(\x05\x12;\n\x12geotiff_coordinate\x18\x05 \x01(\x0b\x32\x1f.skavl.anomaly.v1.UtmCoordinate\"\xa0\x01\n\x0f\x41nomalyResponse\x12;\n\x10project_metadata\x18\x01 \x01(\x0b\x32!.skavl.anomaly.v1.ProjectMetadata\x12\x1c\n\x14last_processed_index\x18\x02 \x01(\x05\x12\x32\n\x0c\x61nomaly_sets\x18\x03 \x03(\x0b\x32\x1c.skavl.anomaly.v1.AnomalySet\"\x96\x01\n\x0fProjectMetadata\x12\x14\n\x0cproject_name\x18\x01 \x01(\t\x12\x16\n\x0esosi_file_path\x18\x02 \x01(\t\x12\x19\n\x11image_folder_path\x18\x03 \x01(\t\x12!\n\x14sosi_water_mask_path\x18\x04 \x01(\tH\x00\x88\x01\x01\x42\x17\n\x15_sosi_water_mask_path\"\\\n\x1d\x44\x65scribeAnomalyProjectRequest\x12;\n\x10project_metadata\x18\x01 \x01(\x0b\x32!.skavl.anomaly.v1.ProjectMetadata\"\x95\x01\n\x1e\x44\x65scribeAnomalyProjectResponse\x12;\n\x10project_metadata\x18\x01 \x01(\x0b\x32!.skavl.anomaly.v1.ProjectMetadata\x12\x18\n\x10images_in_folder\x18\x02 \x01(\x05\x12\x1c\n\x14last_processed_image\x18\x03 \x01(\x05\"\x87\x01\n\x17\x44\x65tectAnomalySetRequest\x12;\n\x10project_metadata\x18\x01 \x01(\x0b\x32!.skavl.anomaly.v1.ProjectMetadata\x12/\n\nstart_mode\x18\x02 \x01(\x0e\x32\x1b.skavl.anomaly.v1.StartMode\"W\n\x18\x44\x65tectAnomalySetResponse\x12;\n\x10\x61nomaly_response\x18\x01 \x01(\x0b\x32!.skavl.anomaly.v1.AnomalyResponse*2\n\tStartMode\x12\x11\n\rSTART_RESTART\x10\x00\x12\x12\n\x0eSTART_CONTINUE\x10\x01\x32\x80\x02\n\x16\x41nomalyDetectorService\x12{\n\x16\x44\x65scribeAnomalyProject\x12/.skavl.anomaly.v1.DescribeAnomalyProjectRequest\x1a\x30.skavl.anomaly.v1.DescribeAnomalyProjectResponse\x12i\n\x10\x44\x65tectAnomalySet\x12).skavl.anomaly.v1.DetectAnomalySetRequest\x1a*.skavl.anomaly.v1.DetectAnomalySetResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'anomaly_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_STARTMODE']._serialized_start=974
-  _globals['_STARTMODE']._serialized_end=1024
+  _globals['_STARTMODE']._serialized_start=1043
+  _globals['_STARTMODE']._serialized_end=1093
   _globals['_UTMCOORDINATE']._serialized_start=35
   _globals['_UTMCOORDINATE']._serialized_end=85
   _globals['_ANOMALYSET']._serialized_start=88
   _globals['_ANOMALYSET']._serialized_end=252
   _globals['_ANOMALYRESPONSE']._serialized_start=255
   _globals['_ANOMALYRESPONSE']._serialized_end=415
-  _globals['_PROJECTMETADATA']._serialized_start=417
-  _globals['_PROJECTMETADATA']._serialized_end=507
-  _globals['_DESCRIBEANOMALYPROJECTREQUEST']._serialized_start=509
-  _globals['_DESCRIBEANOMALYPROJECTREQUEST']._serialized_end=597
-  _globals['_DESCRIBEANOMALYPROJECTRESPONSE']._serialized_start=600
-  _globals['_DESCRIBEANOMALYPROJECTRESPONSE']._serialized_end=745
-  _globals['_DETECTANOMALYSETREQUEST']._serialized_start=748
-  _globals['_DETECTANOMALYSETREQUEST']._serialized_end=883
-  _globals['_DETECTANOMALYSETRESPONSE']._serialized_start=885
-  _globals['_DETECTANOMALYSETRESPONSE']._serialized_end=972
-  _globals['_ANOMALYDETECTORSERVICE']._serialized_start=1027
-  _globals['_ANOMALYDETECTORSERVICE']._serialized_end=1283
+  _globals['_PROJECTMETADATA']._serialized_start=418
+  _globals['_PROJECTMETADATA']._serialized_end=568
+  _globals['_DESCRIBEANOMALYPROJECTREQUEST']._serialized_start=570
+  _globals['_DESCRIBEANOMALYPROJECTREQUEST']._serialized_end=662
+  _globals['_DESCRIBEANOMALYPROJECTRESPONSE']._serialized_start=665
+  _globals['_DESCRIBEANOMALYPROJECTRESPONSE']._serialized_end=814
+  _globals['_DETECTANOMALYSETREQUEST']._serialized_start=817
+  _globals['_DETECTANOMALYSETREQUEST']._serialized_end=952
+  _globals['_DETECTANOMALYSETRESPONSE']._serialized_start=954
+  _globals['_DETECTANOMALYSETRESPONSE']._serialized_end=1041
+  _globals['_ANOMALYDETECTORSERVICE']._serialized_start=1096
+  _globals['_ANOMALYDETECTORSERVICE']._serialized_end=1352
 # @@protoc_insertion_point(module_scope)

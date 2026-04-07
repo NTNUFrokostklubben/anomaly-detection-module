@@ -6,18 +6,20 @@ import tifffile as tf
 
 from services.sosi_converter_service import convert_sosi_to_gpkg
 
-output_file = Path(__file__).parent.parent.parent /"tests" / "testdata" / "output.sos"
 
-#TODO change the output file to a better location
 def convert_sosi_get_gdf(input_file: Path) -> gpd.GeoDataFrame:
-    """Load a SOSI file and return its content as a string.
     """
-    print(output_file)
-    convert_sosi_to_gpkg(str(input_file), str(output_file))
-        
-    return get_gdf_content(output_file)
+    Converts a sosi file to gpkg and returns GeoDataFrame data.
 
+    Args:
+        input_file: Path to sosi file
 
+    Returns:
+        GeoDataFrame
+    """
+    output_path = input_file.with_suffix(".gpkg")
+    convert_sosi_to_gpkg(str(input_file), str(output_path))
+    return get_gdf_content(output_path)
 
 def get_gdf_content(gpkg_path: Path) -> gpd.GeoDataFrame:
     """Load a GeoPackage file and return its content as a GeoDataFrame.
@@ -66,3 +68,14 @@ def read_tiff_fast(path, *, series: int = None, level: int = None) -> np.ndarray
 
     return np.transpose(img[:, :, :3], (2, 0, 1))
 
+def count_images_in_folder(path) -> int:
+    """
+    Counts all GeoTIFF images present for a path
+
+    Args:
+        path: Canonical path to folder containing images
+
+    Returns:
+        Number of GeoTIFF images
+    """
+    return len(list(Path(path).glob("*.tif")))
