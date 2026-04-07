@@ -5,7 +5,7 @@ from affine import Affine
 from shapely.geometry import MultiPolygon, Polygon
 from unittest.mock import MagicMock
 
-from core.water_detector import _affine_from_sosi_polygon, create_water_polygon_mask
+from core.water_detector import _affine_from_sosi_polygon, create_water_polygon_mask, dissimilarity_confidence
 
 # Image dimensions used across all tests
 _W = 100
@@ -112,3 +112,39 @@ class TestCreateWaterPolygonMaskNoGeoref:
             _make_contour_df(), _make_sosi_df(self._IMG), self._IMG, ds
         )
         assert result.any(), "Expected at least some water pixels in the mask"
+
+
+# ---------------------------------------------------------------------------
+# dissimilarity_confidence
+# ---------------------------------------------------------------------------
+
+class TestDissimilarityConfidence:
+    def test_zero_input_returns_zero(self):
+        assert dissimilarity_confidence(0.0) == pytest.approx(0.0)
+
+    def test_threshold_returns_one(self):
+        assert dissimilarity_confidence(0.3) == pytest.approx(1.0)
+
+    def test_above_threshold_returns_one(self):
+        assert dissimilarity_confidence(0.5) == pytest.approx(1.0)
+        assert dissimilarity_confidence(1.0) == pytest.approx(1.0)
+
+    def test_midpoint_is_between_zero_and_one(self):
+        result = dissimilarity_confidence(0.15)
+        assert 0.0 < result < 1.0
+
+    def test_monotonically_increasing(self):
+        xs = [0.0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30]
+        values = [dissimilarity_confidence(x) for x in xs]
+        assert values == sorted(values)
+
+    def test_output_bounded(self):
+        for x in [0.0, 0.1, 0.2, 0.3, 0.5, 1.0]:
+            result = dissimilarity_confidence(x)
+            assert 0.0 <= result <= 1.0
+
+    def test_higher_k_steeper_at_midpoint(self):
+        """Higher k should give a lower value at x=0.15 (slower start, sharper end)."""
+        low_k = dissimilarity_confidence(0.15, k=4.0)
+        high_k = dissimilarity_confidence(0.15, k=10.0)
+        assert high_k < low_k

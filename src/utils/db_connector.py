@@ -260,7 +260,7 @@ class DbConnector:
                 """ 
             REPLACE INTO analysis_data(img_id, analysis_type, confidence) values(?,?,?)  
                                                         -- Replace into is shorthand for insert or replace.
-                           """, (img_file_name, analysis_type.value[0], confidence_lvl))
+                           """, (img_file_name, analysis_type.value, confidence_lvl))
             self.commit()
             return True
         except sql.DatabaseError as e :

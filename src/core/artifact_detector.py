@@ -1,3 +1,4 @@
+import math
 from typing import Any
 
 import numpy as np
@@ -68,3 +69,21 @@ def detect_artifact_consistency(images: list[image.Image], increment: int) -> fl
     consistency = (stacked.max(axis=0) - stacked.min(axis=0)).sum(axis=1) / 3.0  # (num_blocks,)
     return consistency
 
+def artifact_confidence(x: float) -> float:
+    """
+    Maps a dissimilarity score in [0, 1] to a confidence value in [0, 1].
+
+    - Returns 1.0 at x = 0  (identical blocks → high confidence of artifact)
+    - Returns 0.0 at x >= 0.1 (too different → unlikely to be an artifact)
+    - Exponential decay in between: slow drop at first, then falls off fast
+
+    Args:
+        x: Dissimilarity score in [0, 1].
+        k: Steepness of the exponential curve. Higher = sharper drop.
+
+    Returns:
+        Confidence that the two images are the same, in [0, 1].
+    """
+    if x >= 0.1:
+        return 0.0
+    return 1.0 - (math.exp( x) - 1) / (math.exp(0.1) - 1)

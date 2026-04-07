@@ -24,7 +24,7 @@ def start_artifact_detection_analysis(image, increment):
         print(f"Analysing artifacts in image{image.img_id}")
         print(f"Artifact candidates: {np.sort(values.flatten())[:20]}")
         print(f"Time analysis: {t:.6f}s\n")
-        db.add_analysis(image.img_id, AnalysisType.ARTIFACT, 1 - np.min(values.flatten()))
+        db.add_analysis(image.img_id, AnalysisType.ARTIFACT, ad.artifact_confidence(np.min(values.flatten())))
 
 
 
