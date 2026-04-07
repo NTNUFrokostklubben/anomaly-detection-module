@@ -2,6 +2,8 @@ import sqlite3 as sql
 from os.path import exists
 import atexit
 from pathlib import Path
+
+from entity.anomaly.ProjectMetadata import ProjectMetadata
 from utils.string_manip import slice_image_name
 import numpy as np
 from entity.enums.analysis_t import AnalysisType
@@ -18,7 +20,6 @@ class DbConnector:
     _conn = None        # holds the database connection.
     _sql_file = Path(__file__).parent / 'schema.sql'     #Finds path to this files parent, then navigates to schema
     _db_file = Path(__file__).parent.parent.parent / 'database.db'
-
 
     def __new__(cls, *args, **kwargs):
         """
@@ -42,9 +43,9 @@ class DbConnector:
             try:
                 sql_script = ""
                 with open(self._sql_file, 'r') as f:
-                        sql_script = f.read()
+                    sql_script = f.read()
 
-                self._conn = sql.connect(self._db_file)
+                self._conn = sql.connect(self._db_file, check_same_thread=False)
                 self._conn.execute("PRAGMA foreign_keys = ON")
                 self._conn.execute("PRAGMA journal_mode=WAL")
                 cursor = self._conn.cursor()
@@ -54,7 +55,6 @@ class DbConnector:
             except sql.DatabaseError as e:
                 print(e)
 
-
     def add_image(self, img_file_name) -> bool:
         """
         Add an image to the database. Contains no image data, just metadata.
@@ -63,15 +63,15 @@ class DbConnector:
         """
         try:
             cursor = self._conn.cursor()
-            prefix, line, line_number, abs_number =  slice_image_name(img_file_name)
+            prefix, line, line_number, abs_number = slice_image_name(img_file_name)
             cursor.execute(
-                """INSERT INTO images(img_id, prefix, line, line_number, abs_number) VALUES(?, ?, ?, ?, ?)""",
+                """INSERT INTO images(img_id, prefix, line, line_number, abs_number)
+                   VALUES (?, ?, ?, ?, ?)""",
                 (img_file_name, prefix, line, line_number, abs_number))
             self.commit()
             return True
         except sql.DatabaseError as e:
             return False
-
 
     def add_artifact_data(self, img_file_name: str, data: np.ndarray, offset: int):
         """
@@ -84,7 +84,9 @@ class DbConnector:
         try:
             cursor = self._conn.cursor()
             blob = data.tobytes()
-            img_data = cursor.execute("""SELECT * FROM images WHERE img_id = ? """, (img_file_name,)).fetchone()
+            img_data = cursor.execute("""SELECT *
+                                         FROM images
+                                         WHERE img_id = ? """, (img_file_name,)).fetchone()
             if img_data is None:
                 self.add_image(img_file_name)
 
@@ -92,13 +94,15 @@ class DbConnector:
                     """
                            REPLACE INTO artifact_datapoints(img_id, dtype, shape, offset, data) VALUES(?, ?, ?, ?, ?)
                            """,(img_file_name, str(data.dtype), str(data.shape), offset, blob))
+
             self.commit()
             return True
         except sql.DatabaseError as e:
             print(e)
             return False
 
-    def add_artifact_candidate(self, img_file_name: str, color: float, diff: float, offset: int, coords: tuple[int, int]) -> bool:
+    def add_artifact_candidate(self, img_file_name: str, color: float, diff: float, offset: int,
+                               coords: tuple[int, int]) -> bool:
         """
         Add an artifact candidate to the database.
         :param img_file_name: The file name of the image.
@@ -110,13 +114,16 @@ class DbConnector:
         """
         try:
             cursor = self._conn.cursor()
-            img_data = cursor.execute("""SELECT * FROM images WHERE img_id = ? """, (img_file_name,)).fetchone()
+            img_data = cursor.execute("""SELECT *
+                                         FROM images
+                                         WHERE img_id = ? """, (img_file_name,)).fetchone()
             if img_data is None:
                 self.add_image(img_file_name)
 
-            cursor.execute(""" INSERT INTO artifact_candidates(coord_x, coord_y, img_id, color_value, diff_value, offset) 
-                           VALUES(?, ?, ?, ?, ?, ?)""",
-                           (coords[0],coords[1],img_file_name,color,diff,offset))
+            cursor.execute(
+                """ INSERT INTO artifact_candidates(coord_x, coord_y, img_id, color_value, diff_value, offset)
+                    VALUES (?, ?, ?, ?, ?, ?)""",
+                (coords[0], coords[1], img_file_name, color, diff, offset))
             self.commit()
             return True
         except sql.DatabaseError as e:
@@ -132,18 +139,84 @@ class DbConnector:
         """
         try:
             cursor = self._conn.cursor()
-            cursor.execute(""" 
-                            DELETE FROM artifact_datapoints                                                                                           
-                            WHERE img_id IN (SELECT img_id FROM images WHERE line = ? AND prefix = ?)                                                                 
-                                                                     
+            cursor.execute("""
+                           DELETE
+                           FROM artifact_datapoints
+                           WHERE img_id IN (SELECT img_id FROM images WHERE line = ? AND prefix = ?)
+
                            """, (line, prefix,))
             self.commit()
             return True
         except sql.DatabaseError:
             return False
 
+    def add_project(self, project_metadata: ProjectMetadata):
+        """
 
-    def get_artifact_data_line(self, prefix: str, line: int)-> list[np.ndarray] | None:
+        Args:
+            project_metadata: Project Metadata Entity
+
+        Returns:
+
+        """
+        try:
+            cursor = self._conn.cursor()
+            cursor.execute("""
+                           INSERT INTO projects (project_name, sosi_path, image_folder_path, sosi_water_path)
+                           VALUES (?, ?, ?, ?)
+                           """, (project_metadata.project_name, project_metadata.sosi_path,
+                                 project_metadata.image_folder_path, project_metadata.sosi_water_mask_path))
+            self.commit()
+            return True
+        except Exception as e:
+            print(e)
+            return False
+
+    def increment_project_image_intex(self, project_name: str):
+        """
+        Updates the last processed image index for a given project name
+
+        Args:
+            project_name: Project name to increment last processed image index
+
+        Returns:
+            True or False
+        """
+        try:
+            cursor = self._conn.cursor()
+            cursor.execute("""
+                           UPDATE projects
+                           SET last_processed_image_index = last_processed_image_index + 1
+                           WHERE project_name = ?
+                           """, (project_name,))
+            self.commit()
+            return True
+        except Exception as e:
+            return False
+
+    def get_project(self, project_name: str) -> ProjectMetadata:
+        """
+        Gets project data stored in DB
+
+        Args:
+            project_name: project name string
+
+        Returns:
+            tuple: (project_name, sosi_path, image_folder_path)
+
+        """
+        try:
+            cursor = self._conn.cursor()
+            cursor.execute("""
+                           SELECT *
+                           FROM projects
+                           WHERE project_name = ?
+                           """, (project_name,))
+            return ProjectMetadata.from_row(cursor.fetchone())
+        except:
+            return None
+
+    def get_artifact_data_line(self, prefix: str, line: int) -> list[np.ndarray] | None:
 
         """
         Get the computed artifact data for a line from the database.
@@ -154,12 +227,13 @@ class DbConnector:
         try:
             cursor = self._conn.cursor()
             rows = cursor.execute("""
-                            SELECT dtype, shape, data
-                            FROM artifact_datapoints
-                            WHERE img_id IN (
-                                SELECT img_id FROM images
-                                WHERE line = ? AND prefix = ?)
-                           """, (line, prefix,))
+                                  SELECT dtype, shape, data
+                                  FROM artifact_datapoints
+                                  WHERE img_id IN (SELECT img_id
+                                                   FROM images
+                                                   WHERE line = ?
+                                                     AND prefix = ?)
+                                  """, (line, prefix,))
             self.commit()
             return [np.frombuffer(r[2], dtype=r[0]).reshape(eval(r[1])) for r in rows]
         except sql.DatabaseError:

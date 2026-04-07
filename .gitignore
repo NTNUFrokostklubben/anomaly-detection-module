@@ -38,5 +38,4 @@ test_data/
 __pycache__
 # database files
 database.db
-*-shm
-*-wal
+database.db*

@@ -47,30 +47,32 @@ class AnomalyResponse(_message.Message):
     def __init__(self, project_metadata: _Optional[_Union[ProjectMetadata, _Mapping]] = ..., last_processed_index: _Optional[int] = ..., anomaly_sets: _Optional[_Iterable[_Union[AnomalySet, _Mapping]]] = ...) -> None: ...
 
 class ProjectMetadata(_message.Message):
-    __slots__ = ("project_name", "sosi_file_path", "image_folder_path")
+    __slots__ = ("project_name", "sosi_file_path", "image_folder_path", "sosi_water_mask_path")
     PROJECT_NAME_FIELD_NUMBER: _ClassVar[int]
     SOSI_FILE_PATH_FIELD_NUMBER: _ClassVar[int]
     IMAGE_FOLDER_PATH_FIELD_NUMBER: _ClassVar[int]
+    SOSI_WATER_MASK_PATH_FIELD_NUMBER: _ClassVar[int]
     project_name: str
     sosi_file_path: str
     image_folder_path: str
-    def __init__(self, project_name: _Optional[str] = ..., sosi_file_path: _Optional[str] = ..., image_folder_path: _Optional[str] = ...) -> None: ...
+    sosi_water_mask_path: str
+    def __init__(self, project_name: _Optional[str] = ..., sosi_file_path: _Optional[str] = ..., image_folder_path: _Optional[str] = ..., sosi_water_mask_path: _Optional[str] = ...) -> None: ...
 
 class DescribeAnomalyProjectRequest(_message.Message):
-    __slots__ = ("project_data",)
-    PROJECT_DATA_FIELD_NUMBER: _ClassVar[int]
-    project_data: ProjectMetadata
-    def __init__(self, project_data: _Optional[_Union[ProjectMetadata, _Mapping]] = ...) -> None: ...
+    __slots__ = ("project_metadata",)
+    PROJECT_METADATA_FIELD_NUMBER: _ClassVar[int]
+    project_metadata: ProjectMetadata
+    def __init__(self, project_metadata: _Optional[_Union[ProjectMetadata, _Mapping]] = ...) -> None: ...
 
 class DescribeAnomalyProjectResponse(_message.Message):
-    __slots__ = ("project_data", "images_in_folder", "last_processed_image")
-    PROJECT_DATA_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("project_metadata", "images_in_folder", "last_processed_image")
+    PROJECT_METADATA_FIELD_NUMBER: _ClassVar[int]
     IMAGES_IN_FOLDER_FIELD_NUMBER: _ClassVar[int]
     LAST_PROCESSED_IMAGE_FIELD_NUMBER: _ClassVar[int]
-    project_data: ProjectMetadata
+    project_metadata: ProjectMetadata
     images_in_folder: int
     last_processed_image: int
-    def __init__(self, project_data: _Optional[_Union[ProjectMetadata, _Mapping]] = ..., images_in_folder: _Optional[int] = ..., last_processed_image: _Optional[int] = ...) -> None: ...
+    def __init__(self, project_metadata: _Optional[_Union[ProjectMetadata, _Mapping]] = ..., images_in_folder: _Optional[int] = ..., last_processed_image: _Optional[int] = ...) -> None: ...
 
 class DetectAnomalySetRequest(_message.Message):
     __slots__ = ("project_metadata", "start_mode")
