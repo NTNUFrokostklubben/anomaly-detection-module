@@ -88,10 +88,10 @@ class DbConnector:
             if img_data is None:
                 self.add_image(img_file_name)
 
-            cursor.execute("""
-                           INSERT OR REPLACE INTO artifact_datapoints(img_id, dtype, shape, offset, data) VALUES(?, ?, ?, ?, ?)
+            cursor.execute(
+                    """
+                           REPLACE INTO artifact_datapoints(img_id, dtype, shape, offset, data) VALUES(?, ?, ?, ?, ?)
                            """,(img_file_name, str(data.dtype), str(data.shape), offset, blob))
-
             self.commit()
             return True
         except sql.DatabaseError as e:
@@ -182,14 +182,16 @@ class DbConnector:
             if img_data is None:
                 self.add_image(img_file_name)
 
-            rows = cursor.execute(""" 
+            rows = cursor.execute(
+                """ 
             REPLACE INTO analysis_data(img_id, analysis_type, confidence) values(?,?,?)  
                                                         -- Replace into is shorthand for insert or replace.
-                           """, (img_file_name, analysis_type, confidence_lvl))
+                           """, (img_file_name, analysis_type.value[0], confidence_lvl))
             self.commit()
             return True
-        except sql.DatabaseError:
-            return None
+        except sql.DatabaseError as e :
+            print(e)
+            return False
 
     def get_all_img_over_confidence(self, project:str, confidence: float ) -> list[tuple[str, float]] | None:
         """
@@ -213,6 +215,7 @@ class DbConnector:
         except sql.DatabaseError:
             return None
 
+
     def get_all_analysis_img(self, img_file_name: str) -> list[tuple[AnalysisType, float]] | None:
         """
         Fetch all analysis data for an image
@@ -228,6 +231,8 @@ class DbConnector:
             return analysis_data
         except sql.DatabaseError:
             return None
+
+
     def get_max_confidence_img(self, img_file_name: str) -> float | None:
         """
         Get the largest analysis confidence for an image

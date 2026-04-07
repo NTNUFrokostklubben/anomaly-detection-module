@@ -491,6 +491,8 @@ def refine_mask_hsl(img_data: ndarray, polygon_mask: ndarray[tuple[int, int]], i
 
     return  refined_mask.astype(np.uint8)
 
+
+
 def find_disagreement_ratio(mask: ndarray[tuple[bool, bool]], other_mask: ndarray[tuple[bool, bool]]) -> float:
     """
     Finds the amount of disagreement between two binary masks. The stricter of the two masks should be in other_mask.
@@ -504,6 +506,29 @@ def find_disagreement_ratio(mask: ndarray[tuple[bool, bool]], other_mask: ndarra
     disagreement = mask.astype(np.bool_) ^ other_mask.astype(np.bool_)
     disagreement_count = np.sum(disagreement)
     return disagreement_count / mask.size
+
+
+
+def dissimilarity_confidence(x: float, k: float = 6.0) -> float:
+    """
+    Maps a dissimilarity score in [0, 1] to a confidence value in [0, 1].
+
+    - Returns 0.0 at x = 0 (identical masks)
+    - Returns 1.0 at x >= 0.3 (clearly different masks)
+    - Exponential ramp in between: slow start, fast finish
+
+    Args:
+        x: Dissimilarity score in [0, 1].
+        k: Steepness of the exponential curve. Higher = sharper transition.
+
+    Returns:
+        Confidence that the two images are different, in [0, 1].
+    """
+    if x >= 0.3:
+        return 1.0
+    return (np.exp(k * x) - 1) / (np.exp(k * 0.3) - 1)
+
+
 
 def crop_arrays_binary(array: ndarray, other_array: ndarray) -> tuple[ndarray, ndarray]:
     """
