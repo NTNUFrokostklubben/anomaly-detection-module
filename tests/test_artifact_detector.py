@@ -120,7 +120,7 @@ class TestArtifactConfidence:
         assert artifact_confidence(1.0) == pytest.approx(0.0)
 
     def test_midpoint_is_between_zero_and_one(self):
-        result = artifact_confidence(0.05)
+        result = artifact_confidence(0.005)
         assert 0.0 < result < 1.0
 
     def test_monotonically_decreasing(self):

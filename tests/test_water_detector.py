@@ -123,10 +123,10 @@ class TestDissimilarityConfidence:
         assert dissimilarity_confidence(0.0) == pytest.approx(0.0)
 
     def test_threshold_returns_one(self):
-        assert dissimilarity_confidence(0.3) == pytest.approx(1.0)
+        assert dissimilarity_confidence(0.8) == pytest.approx(1.0)
 
     def test_above_threshold_returns_one(self):
-        assert dissimilarity_confidence(0.5) == pytest.approx(1.0)
+        assert dissimilarity_confidence(0.9) == pytest.approx(1.0)
         assert dissimilarity_confidence(1.0) == pytest.approx(1.0)
 
     def test_midpoint_is_between_zero_and_one(self):
