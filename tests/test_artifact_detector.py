@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from core.artifact_detector import calculate_average_color_block, detect_artifact_consistency
+from core.artifact_detector import calculate_average_color_block, detect_artifact_consistency, artifact_confidence
 from entity.image.Image import Image
 from utils.db_connector import DbConnector
 from utils.io_tools import read_tiff_fast
@@ -102,6 +102,36 @@ def _load_images(folder, img_names):
             img_arr=arr,
         ))
     return images
+
+
+# ---------------------------------------------------------------------------
+# artifact_confidence
+# ---------------------------------------------------------------------------
+
+class TestArtifactConfidence:
+    def test_zero_input_returns_one(self):
+        assert artifact_confidence(0.0) == pytest.approx(1.0)
+
+    def test_threshold_returns_zero(self):
+        assert artifact_confidence(0.1) == pytest.approx(0.0)
+
+    def test_above_threshold_returns_zero(self):
+        assert artifact_confidence(0.5) == pytest.approx(0.0)
+        assert artifact_confidence(1.0) == pytest.approx(0.0)
+
+    def test_midpoint_is_between_zero_and_one(self):
+        result = artifact_confidence(0.005)
+        assert 0.0 < result < 1.0
+
+    def test_monotonically_decreasing(self):
+        xs = [0.0, 0.02, 0.04, 0.06, 0.08, 0.10]
+        values = [artifact_confidence(x) for x in xs]
+        assert values == sorted(values, reverse=True)
+
+    def test_output_bounded(self):
+        for x in [0.0, 0.02, 0.05, 0.08, 0.1, 0.5, 1.0]:
+            result = artifact_confidence(x)
+            assert 0.0 <= result <= 1.0
 
 
 def detect_artifact_naive_different_blocks_positive():

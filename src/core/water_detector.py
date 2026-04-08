@@ -304,8 +304,12 @@ def clean_water_mask(mask_array: ndarray[tuple[int, int]], max_size=CLEAN_MASK_M
     :return: cleaned: ndarray (bool) - True where water, False elsewhere
     """
 
-    cleaned = morphology.remove_small_objects(mask_array, max_size=max_size)
-    return cleaned
+    n_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+        mask_array.view(np.uint8), connectivity=8
+    )
+    keep = np.zeros(n_labels, dtype=bool)
+    keep[1:] = stats[1:, cv2.CC_STAT_AREA] > max_size
+    return keep[labels]
 
 
 
@@ -524,9 +528,9 @@ def dissimilarity_confidence(x: float, k: float = 6.0) -> float:
     Returns:
         Confidence that the two images are different, in [0, 1].
     """
-    if x >= 0.3:
+    if x >= 0.8:
         return 1.0
-    return (np.exp(k * x) - 1) / (np.exp(k * 0.3) - 1)
+    return (np.exp(k * x) - 1) / (np.exp(k * 0.8) - 1)
 
 
 
@@ -540,9 +544,12 @@ def crop_arrays_binary(array: ndarray, other_array: ndarray) -> tuple[ndarray, n
     :param other_array: the second array to crop so that it matches first array in size.
     :return: the two arrays as a tuple, with other_array last.
     """
-    rows, cols = np.nonzero(array)
-    r_min, r_max = rows.min(), rows.max() + 1
-    c_min, c_max = cols.min(), cols.max() + 1
+    rows_any = np.any(array, axis=1)
+    cols_any = np.any(array, axis=0)
+    r_min = int(rows_any.argmax())
+    r_max = int(len(rows_any) - rows_any[::-1].argmax())
+    c_min = int(cols_any.argmax())
+    c_max = int(len(cols_any) - cols_any[::-1].argmax())
     array = array[r_min:r_max, c_min:c_max]
     if other_array.ndim == 3:
         other_array = other_array[:, r_min:r_max, c_min:c_max]
