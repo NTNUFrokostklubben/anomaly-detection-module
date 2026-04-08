@@ -84,6 +84,6 @@ def artifact_confidence(x: float) -> float:
     Returns:
         Confidence that the two images are the same, in [0, 1].
     """
-    if x >= 0.1:
+    if x >= 0.01:
         return 0.0
-    return 1.0 - (math.exp( x) - 1) / (math.exp(0.1) - 1)
+    return 1.0 - (math.exp( x) - 1) / (math.exp(0.01) - 1)

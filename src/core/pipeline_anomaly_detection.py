@@ -33,23 +33,24 @@ def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, wat
     Start water detection analysis
     """
     increment = 30
-    before = datetime.now()
+    t_0 = time.monotonic()
     polygon_mask = wd.create_water_polygon_mask(water_gdf, sosig_df, image.img_id, image.dataset)
-    polygon_mask = wd.clean_water_mask(polygon_mask)
-    hsl_mask = wd.create_water_mask_hsl(image.img_arr,increment, polygon_mask )
-    polygon_mask, hsl_mask = crop_arrays_binary(polygon_mask, hsl_mask)
+    print(f"  polygon_mask:   {(time.monotonic() - t_0):.2f}s")
+    t = time.monotonic()
+    hsl_mask = wd.create_water_mask_hsl(image.img_arr, increment, polygon_mask)
+    print(f"  hsl_mask:       {(time.monotonic() - t):.2f}s")
+    t = time.monotonic()
     disagreement_ratio = wd.find_disagreement_ratio(polygon_mask, hsl_mask)
-    after = datetime.now()
-    t = (after - before).total_seconds()
-    confidence_level = wd.dissimilarity_confidence(disagreement_ratio)
 
+    confidence_level = wd.dissimilarity_confidence(disagreement_ratio)
+    t_1 = time.monotonic()
     db = DbConnector()
     db.add_analysis(image.img_id, AnalysisType.WATER_MASK, confidence_level)
     print("----------- Water  mask difference -------------")
 
     print(f"Analysing water mask in image{image.img_id}")
     print(f"Disagreement ratio between masks: {disagreement_ratio}")
-    print(f"Time analysis: {t:.6f}s\n")
+    print(f"Time analysis: {t_1 - t_0:.6f}s\n")
 
 
 
@@ -101,7 +102,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, water_gdf, image_folder_p
         img1_path = image_folder_path / sosi_gdf.iloc[i]["bildefilRGB"]
         img2_path = image_folder_path / sosi_gdf.iloc[i + 1]["bildefilRGB"]
 
-        if not img1_path.exists() or not img2_path.exists():
+        if (not img1_path.exists() or not img2_path.exists()) or ( sosi_gdf.iloc[i]["stripenummer"] != sosi_gdf.iloc[i + 1]["stripenummer"]):
             continue
         image1: Image = Image.from_filename(sosi_gdf.iloc[i]["bildefilRGB"])
         arr1, ds1, arr2, ds2, t_load = load_two_image_arrays(img1_path, img2_path)
@@ -115,7 +116,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, water_gdf, image_folder_p
         if water_gdf is not None:
             start_water_detection_analysis(image1, sosi_gdf, water_gdf)
 
-        start_artifact_detection_analysis(image1, 100)
+        start_artifact_detection_analysis(image1, 50)
         start_color_difference_analysis(sosi_gdf, i, arr1, arr2, image1)
 
         db = DbConnector()
