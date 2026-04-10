@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from numpy.typing import NDArray
 from scipy.signal import find_peaks
 
 IMAGE_PATH1 = "/mnt/c/Users/sigbe/Documents/Skoleaar_25_26/Semester_6/Bachelor/HX_14365_NORDMORE_GSD10/lines_nordmore_Nord_2021-CO12825/CO-12825_029_027_0644.tif"
@@ -12,7 +13,7 @@ OUTPUT_PATH2 = "/mnt/c/Users/sigbe/Documents/Skoleaar_25_26/Semester_6/Bachelor/
 HIGHPASS_SIGMA = 80
 
 # Number of perpendicular bands used for the sign-consistency test.
-N_BANDS = 20
+N_BANDS = 25
 
 # A column/row is a glare candidate when BOTH hold:
 CONSISTENCY_MIN = 0.90   # ≥ 90 % of bands agree in sign
@@ -25,7 +26,7 @@ PEAK_MIN_PROMINENCE = 0.05  # peak must rise above its valley neighbours by this
 # Decay-walk: extent boundary is where score drops below this fraction of peak.
 EXTENT_DECAY = 0.35
 
-# Minimum final width (px) after extent-fitting.  Drops noise spikes.
+# Minimum final width (px) after extent-fitting. Drops noise spikes.
 MIN_STRIPE_WIDTH = 5
 
 # A stripe must span ≥ this fraction of the image in the perpendicular direction.
@@ -36,7 +37,7 @@ COLOR_VERTICAL   = (0, 0, 255)   # red  (BGR) for vertical   glare lines
 COLOR_HORIZONTAL = (255, 0, 0)   # blue (BGR) for horizontal glare lines
 OVERLAY_ALPHA    = 0.30          # opacity of the filled extent rectangle
 
-def _load_gray(path):
+def _load_gray(path:str) -> tuple[NDArray[np.uint8 | np.uint16], NDArray[np.float32]]:
     """
     Loads the images based on its path, converts it to a greyscale and normalises it
     Args:
@@ -53,7 +54,7 @@ def _load_gray(path):
     return raw, gray
 
 
-def _highpass(gray, sigma, axis):
+def _highpass(gray: NDArray[np.float32], sigma:int, axis:str) -> NDArray[np.float32]:
     """ Subtract a wide 1-D Gaussian along `axis` to remove scene brightness.
 
     Blurs the grey scale image with a gaussian filter and subtracts the blurred image from the original
@@ -75,11 +76,17 @@ def _highpass(gray, sigma, axis):
     return gray - blur
 
 
-def _score_profile(residual, axis, n_bands):
-    """
-    Return (consistency, magnitude, score) 1-D arrays.
-    axis='col' → length w  (vertical   stripe detector)
-    axis='row' → length h  (horizontal stripe detector)
+def _score_profile(residual:NDArray[np.float32], axis:str, n_bands:int) \
+        -> tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
+    """ Finds the consistency, magnitude, score of 1-D arrays.
+
+    Args:
+        residual: the high frequency components of the image after applying the high pass filter
+        axis: the axis to apply the filter on, either 'col' or 'row'
+        n_bands: the number of bands in the image
+
+    Returns:
+          The consistency, magnitude, score of 1-D arrays.
     """
     img_h, img_w = residual.shape
     if axis == 'col':
@@ -102,10 +109,18 @@ def _score_profile(residual, axis, n_bands):
     return consistency, magnitude, consistency * magnitude
 
 
-def _valley_boundary(score, peaks, i):
+def _valley_boundary(score:NDArray[np.float32], peaks:list[int], i:int) -> tuple[int, int]:
     """
     For peak at index `i`, find left/right bounds using the score-minimum
     (valley) between adjacent peaks as the boundary.
+
+    Args:
+        score: The score profile of the 1-D array
+        peaks: the peak locations
+        i: the index of the peak
+
+    Returns:
+          The left and right bounds of the peak at index `i` based on the valley-split method.
     """
     p = peaks[i]
     n = len(score)
@@ -122,8 +137,15 @@ def _valley_boundary(score, peaks, i):
     return lo, hi
 
 
-def _decay_boundary(score, p, decay):
-    """Walk outward from peak p until score < decay × peak_score."""
+def _decay_boundary(score:NDArray[np.float32], p:int, decay: float) -> tuple[int, int]:
+    """
+    Walk outward from peak p until score < decay × peak_score.
+
+    Args:
+        score: the score profile of the 1-D array
+        p: the peak locations
+        decay: the decay of the 1-D array
+    """
     threshold = score[p] * decay
     n = len(score)
     lo, hi = p, p
@@ -131,9 +153,31 @@ def _decay_boundary(score, p, decay):
     while hi < n - 1 and score[hi + 1] >= threshold: hi += 1
     return lo, hi
 
-def _detect_axis(gray, axis, sigma, n_bands, cons_min, mag_min,
-                 peak_min_dist, peak_min_prom, extent_decay,
-                 min_width, coverage_min):
+#TODO refactor this to instead create a confidence score of image and add to the db
+def _detect_axis(gray:NDArray[np.float32], axis:str, sigma:int, n_bands:int, cons_min:float, mag_min:float,
+                 peak_min_dist:int, peak_min_prom:float, extent_decay:float,
+                 min_width:int) -> list[dict]:
+    """
+    Detects the axis of the glare lines in the image and returns a list of line dicts with the detected lines.
+
+    Args:
+        gray: grayscale image
+        axis: the axis to apply the filter on
+        sigma: Gaussian σ (pixels) for scene-brightness blur along one axis
+        n_bands: the number of bands in the image
+        cons_min: the minimum consistency for a column/row to be considered a glare candidate
+        mag_min: the minimum magnitude profile to be considered a glare candidate
+        peak_min_dist: the minimum pixel separation between two distinct peaks in the score profile
+        peak_min_prom: the minimum proportion of peaks in the score profile
+        extent_decay: the decay of the 1-D arrays
+        min_width: the minimum width of the glare lines in the image
+
+    Returns:
+        The list of line dicts with the detected lines in the image. Each dict contains the type of line
+        (vertical or horizontal), the centre, start and end positions, width in pixels, peak score,
+        and coordinates for drawing.
+    """
+
     h, w = gray.shape
     residual = _highpass(gray, sigma, axis)
     cons, mag, score = _score_profile(residual, axis, n_bands)
@@ -183,25 +227,46 @@ def _detect_axis(gray, axis, sigma, n_bands, cons_min, mag_min,
     return lines
 
 
-def _to_vis(raw):
+def _to_vis(raw:NDArray) -> NDArray[np.uint8]:
+    """
+    Normalises the image and sets it to a grayscale.
+    Args:
+        raw: The raw image to normalise
+
+    Returns:
+        The normalised image in grayscale
+    """
     vis = cv2.normalize(raw, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8) \
           if raw.dtype != np.uint8 else raw.copy()
     return cv2.cvtColor(vis, cv2.COLOR_GRAY2BGR) if vis.ndim == 2 else vis
 
 
-def detect_glare(image_path, output_path,
-                 highpass_sigma      = HIGHPASS_SIGMA,
-                 n_bands             = N_BANDS,
-                 consistency_min     = CONSISTENCY_MIN,
-                 magnitude_min       = MAGNITUDE_MIN,
-                 peak_min_distance   = PEAK_MIN_DISTANCE,
-                 peak_min_prominence = PEAK_MIN_PROMINENCE,
-                 extent_decay        = EXTENT_DECAY,
-                 min_stripe_width    = MIN_STRIPE_WIDTH,
-                 coverage_min        = COVERAGE_MIN):
+def detect_glare(image_path:str, output_path:str,
+                 highpass_sigma:int        = HIGHPASS_SIGMA,
+                 n_bands:int               = N_BANDS,
+                 consistency_min:float     = CONSISTENCY_MIN,
+                 magnitude_min:float       = MAGNITUDE_MIN,
+                 peak_min_distance:int     = PEAK_MIN_DISTANCE,
+                 peak_min_prominence:float = PEAK_MIN_PROMINENCE,
+                 extent_decay:float        = EXTENT_DECAY,
+                 min_stripe_width:int      = MIN_STRIPE_WIDTH) -> list[dict]:
     """
-    Detect glare lines in `image_path`, write annotated PNG to `output_path`,
-    and return a list of line dicts.
+    Detect glare lines in the image, write annotated PNG to an output png image and returns a list of line dicts.
+
+    Args:
+        image_path: Path to the image
+        output_path: Path to the output image
+        highpass_sigma: Highpass filter sigma
+        n_bands: Number of bands
+        consistency_min: Consistency threshold
+        magnitude_min: Magnitude threshold
+        peak_min_distance: Peak distance threshold
+        peak_min_prominence: Peak prominence threshold
+        extent_decay: Extent decay threshold
+        min_stripe_width: Minimum stripe-width threshold
+
+    Returns:
+        The list of all the detected glare lines in the image for both axis
     """
     print(f"\n{'='*60}")
     print(f"Processing: {image_path}")
@@ -212,18 +277,17 @@ def detect_glare(image_path, output_path,
     kw = dict(sigma=highpass_sigma, n_bands=n_bands,
               cons_min=consistency_min, mag_min=magnitude_min,
               peak_min_dist=peak_min_distance, peak_min_prom=peak_min_prominence,
-              extent_decay=extent_decay, min_width=min_stripe_width,
-              coverage_min=coverage_min)
+              extent_decay=extent_decay, min_width=min_stripe_width)
 
     print("  Scanning vertical glare …")
-    vlines = _detect_axis(gray, 'col', **kw)
-    print(f"    → {len(vlines)} line(s)")
+    v_lines = _detect_axis(gray, 'col', **kw)
+    print(f"    → {len(v_lines)} line(s)")
 
     print("  Scanning horizontal glare …")
-    hlines = _detect_axis(gray, 'row', **kw)
-    print(f"    → {len(hlines)} line(s)")
+    h_lines = _detect_axis(gray, 'row', **kw)
+    print(f"    → {len(h_lines)} line(s)")
 
-    all_lines = vlines + hlines
+    all_lines = v_lines + h_lines
 
     # ── Draw ──────────────────────────────────────────────────────────────────
     vis = _to_vis(raw)
