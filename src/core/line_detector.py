@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
-
-# config
+from scipy.signal import find_peaks
 
 IMAGE_PATH1 = "/mnt/c/Users/sigbe/Documents/Skoleaar_25_26/Semester_6/Bachelor/HX_14365_NORDMORE_GSD10/lines_nordmore_Nord_2021-CO12825/CO-12825_029_027_0644.tif"
 OUTPUT_PATH1 = "/mnt/c/Users/sigbe/Documents/Skoleaar_25_26/Semester_6/Bachelor/HX_14365_NORDMORE_GSD10/lines_nordmore_Nord_2021-CO12825/detected_glare_anomaly.png"
@@ -9,315 +8,270 @@ OUTPUT_PATH1 = "/mnt/c/Users/sigbe/Documents/Skoleaar_25_26/Semester_6/Bachelor/
 IMAGE_PATH2 = "/mnt/c/Users/sigbe/Documents/Skoleaar_25_26/Semester_6/Bachelor/HX_14365_NORDMORE_GSD10/lines_nordmore_Nord_2021-CO12825/HX-14365_073_001_14822.tif"
 OUTPUT_PATH2 = "/mnt/c/Users/sigbe/Documents/Skoleaar_25_26/Semester_6/Bachelor/HX_14365_NORDMORE_GSD10/lines_nordmore_Nord_2021-CO12825/detected_glare_control.png"
 
-# Width of the Gaussian used to estimate scene-level brightness per column/row. Must be odd
+# Gaussian σ (pixels) for scene-brightness blur along one axis.
 HIGHPASS_SIGMA = 80
 
-# Number of horizontal bands used to test sign-consistency.
-# More bands = finer resolution but noisier per-band estimates.
+# Number of perpendicular bands used for the sign-consistency test.
 N_BANDS = 20
 
-# A stripe is accepted when:
-CONSISTENCY_MIN = 0.90  # % of bands that must agree in sign
-MAGNITUDE_MIN = 0.15  # median per-band z-score magnitude
+# A column/row is a glare candidate when BOTH hold:
+CONSISTENCY_MIN = 0.90   # ≥ 90 % of bands agree in sign
+MAGNITUDE_MIN   = 0.10   # median per-band |z-score| ≥ 0.10
 
-# Two candidate columns are part of the same stripe when they are this close.
-STRIPE_MERGE_GAP = 80
+# Peak-detection parameters
+PEAK_MIN_DISTANCE   = 15    # minimum px separation between two distinct peaks
+PEAK_MIN_PROMINENCE = 0.05  # peak must rise above its valley neighbours by this
 
-# A stripe must be at least this many pixels wide to count.
-MIN_STRIPE_WIDTH = 3
+# Decay-walk: extent boundary is where score drops below this fraction of peak.
+EXTENT_DECAY = 0.35
 
-# A detected stripe must span at least this fraction of the image dimension.
+# Minimum final width (px) after extent-fitting.  Drops noise spikes.
+MIN_STRIPE_WIDTH = 5
+
+# A stripe must span ≥ this fraction of the image in the perpendicular direction.
 COVERAGE_MIN = 0.85
 
-# colors for debugging
-COLOR_VERTICAL = (0, 0, 255)
-COLOR_HORIZONTAL = (255, 0, 0)
+# For drawing the lines
+COLOR_VERTICAL   = (0, 0, 255)   # red  (BGR) for vertical   glare lines
+COLOR_HORIZONTAL = (255, 0, 0)   # blue (BGR) for horizontal glare lines
+OVERLAY_ALPHA    = 0.30          # opacity of the filled extent rectangle
 
-# CORE FUNCTIONS
-def load_as_float_gray(path: str) -> tuple[np.ndarray, np.ndarray]:
+def _load_gray(path):
     """
-    Load image (8 or 16-bit, colour or grey) and return
-    (original_bgr_or_gray, float32_gray_0-255).
+    Loads the images based on its path, converts it to a greyscale and normalises it
+    Args:
+        path: the path to the image
+
+    Returns:
+        The raw file and the greyscale image
     """
     raw = cv2.imread(path, cv2.IMREAD_UNCHANGED)
     if raw is None:
         raise FileNotFoundError(f"Cannot open: {path}")
-
-    if raw.ndim == 3:
-        gray = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = raw.copy()
-
+    gray = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if raw.ndim == 3 else raw.copy()
     gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX).astype(np.float32)
     return raw, gray
 
 
-def highpass_residual(gray: np.ndarray, sigma: int, axis: str) -> np.ndarray:
-    """
-    Subtract a heavy Gaussian blur along one axis to remove scene-level
-    brightness variation, leaving only stripe-like anomalies.
+def _highpass(gray, sigma, axis):
+    """ Subtract a wide 1-D Gaussian along `axis` to remove scene brightness.
 
-    axis='col' → blur horizontally  (removes left-right scene gradient)
-    axis='row' → blur vertically    (removes top-bottom scene gradient)
-    """
-    # Kernel size: 6*sigma + 1, rounded to odd
-    ksize = int(6 * sigma) | 1
+    Blurs the grey scale image with a gaussian filter and subtracts the blurred image from the original
+    to get the high frequency components of the image
 
+    Args:
+        gray: the grey scale image to process
+        sigma: Gaussian σ (pixels) for scene-brightness blur along one axis
+        axis: the axis to apply the filter on, either 'col' or 'row'
+
+    Returns:
+        The grey image subtracted with the blurred image from the original
+    """
+    ksize = int(6 * sigma) | 1  # must be odd
     if axis == 'col':
         blur = cv2.GaussianBlur(gray, (ksize, 1), sigmaX=sigma, sigmaY=0)
     else:
         blur = cv2.GaussianBlur(gray, (1, ksize), sigmaX=0, sigmaY=sigma)
-
     return gray - blur
 
 
-def band_signals(residual: np.ndarray, indices, axis: str,
-                 n_bands: int) -> np.ndarray:
+def _score_profile(residual, axis, n_bands):
     """
-    For a set of columns (axis='col') or rows (axis='row'), compute the
-    mean residual value in each of n_bands slices of the perpendicular
-    dimension, normalised by that band's overall std.
-
-    Returns array of shape (n_bands,).
+    Return (consistency, magnitude, score) 1-D arrays.
+    axis='col' → length w  (vertical   stripe detector)
+    axis='row' → length h  (horizontal stripe detector)
     """
-    h, w = residual.shape
-
+    img_h, img_w = residual.shape
     if axis == 'col':
-        band_len = h // n_bands
-        signals = np.empty(n_bands, dtype=np.float32)
-        for i in range(n_bands):
-            band = residual[i * band_len:(i + 1) * band_len, :]
-            stripe_mean = np.mean(band[:, indices])
-            band_std = np.std(band) + 1e-5
-            signals[i] = stripe_mean / band_std
+        band_len = img_h // n_bands
+        band_means = np.stack([np.mean(residual[i * band_len:(i + 1) * band_len, :], axis=0)
+                               for i in range(n_bands)])
+        band_stds = np.array([np.std(residual[i * band_len:(i + 1) * band_len, :]) + 1e-5
+                              for i in range(n_bands)])
     else:
-        band_len = w // n_bands
-        signals = np.empty(n_bands, dtype=np.float32)
-        for i in range(n_bands):
-            band = residual[:, i * band_len:(i + 1) * band_len]
-            stripe_mean = np.mean(band[indices, :])
-            band_std = np.std(band) + 1e-5
-            signals[i] = stripe_mean / band_std
+        band_len = img_w // n_bands
+        band_means = np.stack([np.mean(residual[:, i * band_len:(i + 1) * band_len], axis=1)
+                               for i in range(n_bands)])
+        band_stds = np.array([np.std(residual[:, i * band_len:(i + 1) * band_len]) + 1e-5
+                              for i in range(n_bands)])
 
-    return signals
-
-
-def glare_scores_per_column(residual: np.ndarray,
-                            n_bands: int) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Return (consistency, magnitude) arrays of length w.
-    Vectorised: avoids per-pixel Python loops.
-    """
-    h, w = residual.shape
-    band_h = h // n_bands
-
-    # Shape: (n_bands, w)
-    band_means = np.stack([
-        np.mean(residual[i * band_h:(i + 1) * band_h, :], axis=0)
-        for i in range(n_bands)
-    ])  # (n_bands, w)
-
-    band_stds = np.array([
-        np.std(residual[i * band_h:(i + 1) * band_h, :]) + 1e-5
-        for i in range(n_bands)
-    ])  # (n_bands,)
-
-    # Normalise each band
-    z = band_means / band_stds[:, np.newaxis]  # (n_bands, w)
-
-    dominant_sign = np.sign(np.median(z, axis=0))  # (w,)
-    same_sign = (np.sign(z) == dominant_sign[np.newaxis, :]).mean(axis=0)
-    magnitude = np.median(np.abs(z), axis=0)
-
-    return same_sign.astype(np.float32), magnitude.astype(np.float32)
-
-
-def glare_scores_per_row(residual: np.ndarray,
-                         n_bands: int) -> tuple[np.ndarray, np.ndarray]:
-    """Same as above but for horizontal glare (per-row analysis)."""
-    h, w = residual.shape
-    band_w = w // n_bands
-
-    band_means = np.stack([
-        np.mean(residual[:, i * band_w:(i + 1) * band_w], axis=1)
-        for i in range(n_bands)
-    ])  # (n_bands, h)
-
-    band_stds = np.array([
-        np.std(residual[:, i * band_w:(i + 1) * band_w]) + 1e-5
-        for i in range(n_bands)
-    ])  # (n_bands,)
-
-    z = band_means / band_stds[:, np.newaxis]  # (n_bands, h)
-
+    z = band_means / band_stds[:, np.newaxis]
     dominant_sign = np.sign(np.median(z, axis=0))
-    same_sign = (np.sign(z) == dominant_sign[np.newaxis, :]).mean(axis=0)
-    magnitude = np.median(np.abs(z), axis=0)
-
-    return same_sign.astype(np.float32), magnitude.astype(np.float32)
-
-
-def find_candidate_indices(consistency: np.ndarray,
-                           magnitude: np.ndarray,
-                           cons_min: float,
-                           mag_min: float) -> np.ndarray:
-    """Return indices where both thresholds are met."""
-    return np.where((consistency >= cons_min) & (magnitude >= mag_min))[0]
+    consistency = (np.sign(z) == dominant_sign).mean(axis=0).astype(np.float32)
+    magnitude = np.median(np.abs(z), axis=0).astype(np.float32)
+    return consistency, magnitude, consistency * magnitude
 
 
-def group_indices(indices: np.ndarray,
-                  gap: int) -> list[tuple[int, int]]:
+def _valley_boundary(score, peaks, i):
     """
-    Merge nearby indices into (start, end) groups.
-    Gap-filling: indices within `gap` pixels of each other are joined.
+    For peak at index `i`, find left/right bounds using the score-minimum
+    (valley) between adjacent peaks as the boundary.
     """
-    if len(indices) == 0:
-        return []
-
-    groups = []
-    start = indices[0]
-    prev = indices[0]
-
-    for idx in indices[1:]:
-        if idx - prev <= gap:
-            prev = idx
-        else:
-            groups.append((start, prev))
-            start = prev = idx
-
-    groups.append((start, prev))
-    return groups
+    p = peaks[i]
+    n = len(score)
+    if i == 0:
+        lo = 0
+    else:
+        seg = score[peaks[i-1] : p + 1]
+        lo  = peaks[i-1] + int(np.argmin(seg))
+    if i == len(peaks) - 1:
+        hi = n - 1
+    else:
+        seg = score[p : peaks[i+1] + 1]
+        hi  = p + int(np.argmin(seg)) - 1
+    return lo, hi
 
 
-def groups_to_lines(groups: list[tuple[int, int]],
-                    img_w: int, img_h: int,
-                    axis: str,
-                    coverage_min: float) -> list[dict]:
-    """
-    Convert (start_col, end_col) or (start_row, end_row) groups into
-    line dicts, discarding stripes that don't span the image.
-    """
+def _decay_boundary(score, p, decay):
+    """Walk outward from peak p until score < decay × peak_score."""
+    threshold = score[p] * decay
+    n = len(score)
+    lo, hi = p, p
+    while lo > 0     and score[lo - 1] >= threshold: lo -= 1
+    while hi < n - 1 and score[hi + 1] >= threshold: hi += 1
+    return lo, hi
+
+def _detect_axis(gray, axis, sigma, n_bands, cons_min, mag_min,
+                 peak_min_dist, peak_min_prom, extent_decay,
+                 min_width, coverage_min):
+    h, w = gray.shape
+    residual = _highpass(gray, sigma, axis)
+    cons, mag, score = _score_profile(residual, axis, n_bands)
+
+    candidate_mask = (cons >= cons_min) & (mag >= mag_min)
+
+    # Find all candidate peaks in the score profile
+    all_peaks, _ = find_peaks(
+        score,
+        distance=peak_min_dist,
+        prominence=peak_min_prom,
+        height=mag_min * cons_min,
+    )
+
+    # Keep only peaks whose neighbourhood passes the consistency + magnitude gates
+    peaks = [p for p in all_peaks
+             if candidate_mask[max(0, p - 2): min(len(score), p + 3)].any()]
+
     lines = []
-    for start, end in groups:
-        centre = (start + end) // 2
-        width = end - start + 1
+    for i, p in enumerate(peaks):
+        # Extent = intersection of valley-split and decay-walk
+        v_lo, v_hi = _valley_boundary(score, peaks, i)
+        d_lo, d_hi = _decay_boundary(score, p, extent_decay)
+        lo = max(v_lo, d_lo)
+        hi = min(v_hi, d_hi)
+
+        width = hi - lo + 1
+        if width < min_width:
+            continue
+
+        # Score-weighted centre within the fitted extent
+        region = np.arange(lo, hi + 1)
+        weights = score[lo: hi + 1]
+        centre = int(np.average(region, weights=weights)) \
+            if weights.sum() > 0 else (lo + hi) // 2
 
         if axis == 'col':
-            span = img_h
-            if span < coverage_min * img_h:
-                continue
-            lines.append({
-                'type': 'vertical',
-                'x1': centre, 'y1': 0,
-                'x2': centre, 'y2': img_h - 1,
-                'width_px': width,
-                'start_col': start, 'end_col': end,
-            })
+            lines.append({'type': 'vertical',
+                          'centre': centre, 'start_col': lo, 'end_col': hi,
+                          'width_px': width, 'peak_score': float(score[p]),
+                          'x1': centre, 'y1': 0, 'x2': centre, 'y2': h - 1})
         else:
-            span = img_w
-            if span < coverage_min * img_w:
-                continue
-            lines.append({
-                'type': 'horizontal',
-                'x1': 0, 'y1': centre,
-                'x2': img_w - 1, 'y2': centre,
-                'width_px': width,
-                'start_row': start, 'end_row': end,
-            })
-
+            lines.append({'type': 'horizontal',
+                          'centre': centre, 'start_row': lo, 'end_row': hi,
+                          'width_px': width, 'peak_score': float(score[p]),
+                          'x1': 0, 'y1': centre, 'x2': w - 1, 'y2': centre})
     return lines
 
-def detect_glare(image_path: str, output_path: str,
-                 highpass_sigma: int = HIGHPASS_SIGMA,
-                 n_bands: int = N_BANDS,
-                 consistency_min: float = CONSISTENCY_MIN,
-                 magnitude_min: float = MAGNITUDE_MIN,
-                 stripe_merge_gap: int = STRIPE_MERGE_GAP,
-                 min_stripe_width: int = MIN_STRIPE_WIDTH,
-                 coverage_min: float = COVERAGE_MIN) -> list[dict]:
-    print(f"\n{'=' * 60}")
+
+def _to_vis(raw):
+    vis = cv2.normalize(raw, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8) \
+          if raw.dtype != np.uint8 else raw.copy()
+    return cv2.cvtColor(vis, cv2.COLOR_GRAY2BGR) if vis.ndim == 2 else vis
+
+
+def detect_glare(image_path, output_path,
+                 highpass_sigma      = HIGHPASS_SIGMA,
+                 n_bands             = N_BANDS,
+                 consistency_min     = CONSISTENCY_MIN,
+                 magnitude_min       = MAGNITUDE_MIN,
+                 peak_min_distance   = PEAK_MIN_DISTANCE,
+                 peak_min_prominence = PEAK_MIN_PROMINENCE,
+                 extent_decay        = EXTENT_DECAY,
+                 min_stripe_width    = MIN_STRIPE_WIDTH,
+                 coverage_min        = COVERAGE_MIN):
+    """
+    Detect glare lines in `image_path`, write annotated PNG to `output_path`,
+    and return a list of line dicts.
+    """
+    print(f"\n{'='*60}")
     print(f"Processing: {image_path}")
-
-    raw, gray = load_as_float_gray(image_path)
+    raw, gray = _load_gray(image_path) #Gets the raw and greyscale image
     h, w = gray.shape
-    print(f"  Size: {w}x{h}  |  high-pass σ={highpass_sigma}")
+    print(f"  Size: {w}×{h}  |  σ={highpass_sigma}  bands={n_bands}")
 
-    all_lines: list[dict] = []
+    kw = dict(sigma=highpass_sigma, n_bands=n_bands,
+              cons_min=consistency_min, mag_min=magnitude_min,
+              peak_min_dist=peak_min_distance, peak_min_prom=peak_min_prominence,
+              extent_decay=extent_decay, min_width=min_stripe_width,
+              coverage_min=coverage_min)
 
-    # Check vertical glare
-    print("  Scanning for vertical glare …")
-    res_col = highpass_residual(gray, highpass_sigma, axis='col')
-    cons_c, mag_c = glare_scores_per_column(res_col, n_bands)
+    print("  Scanning vertical glare …")
+    vlines = _detect_axis(gray, 'col', **kw)
+    print(f"    → {len(vlines)} line(s)")
 
-    cands_c = find_candidate_indices(cons_c, mag_c, consistency_min, magnitude_min)
-    groups_c = group_indices(cands_c, stripe_merge_gap)
-    groups_c = [(s, e) for s, e in groups_c if (e - s + 1) >= min_stripe_width]
-    vlines = groups_to_lines(groups_c, w, h, axis='col', coverage_min=coverage_min)
-    all_lines.extend(vlines)
-    print(f"    → {len(vlines)} vertical glare stripe(s)")
+    print("  Scanning horizontal glare …")
+    hlines = _detect_axis(gray, 'row', **kw)
+    print(f"    → {len(hlines)} line(s)")
 
-    # Check horizontal glare
-    print("  Scanning for horizontal glare …")
-    res_row = highpass_residual(gray, highpass_sigma, axis='row')
-    cons_r, mag_r = glare_scores_per_row(res_row, n_bands)
+    all_lines = vlines + hlines
 
-    cands_r = find_candidate_indices(cons_r, mag_r, consistency_min, magnitude_min)
-    groups_r = group_indices(cands_r, stripe_merge_gap)
-    groups_r = [(s, e) for s, e in groups_r if (e - s + 1) >= min_stripe_width]
-    hlines = groups_to_lines(groups_r, w, h, axis='row', coverage_min=coverage_min)
-    all_lines.extend(hlines)
-    print(f"    → {len(hlines)} horizontal glare stripe(s)")
+    # ── Draw ──────────────────────────────────────────────────────────────────
+    vis = _to_vis(raw)
 
-    # Convert raw to BGR 8-bit for drawing
-    if raw.ndim == 2:
-        vis = cv2.cvtColor(
-            cv2.normalize(raw, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8),
-            cv2.COLOR_GRAY2BGR
-        )
-    elif raw.dtype != np.uint8:
-        vis = cv2.normalize(raw, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-        if vis.ndim == 2:
-            vis = cv2.cvtColor(vis, cv2.COLOR_GRAY2BGR)
-    else:
-        vis = raw.copy()
+    for ln in all_lines:
+        color = COLOR_VERTICAL if ln['type'] == 'vertical' else COLOR_HORIZONTAL
 
-    for line in all_lines:
-        color = COLOR_VERTICAL if line['type'] == 'vertical' else COLOR_HORIZONTAL
-        draw_thickness = max(3, line['width_px'])
-
-        if line['type'] == 'vertical':
-            cx = (line['start_col'] + line['end_col']) // 2
-            cv2.line(vis, (cx, 0), (cx, h - 1), color, draw_thickness)
-            label = f"V x={cx} w={line['width_px']}px"
-            cv2.putText(vis, label, (cx + 5, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2, cv2.LINE_AA)
+        if ln['type'] == 'vertical':
+            lo, hi, cx = ln['start_col'], ln['end_col'], ln['centre']
+            overlay = vis.copy()
+            cv2.rectangle(overlay, (lo, 0), (hi, h-1), color, -1)
+            cv2.addWeighted(overlay, OVERLAY_ALPHA, vis, 1-OVERLAY_ALPHA, 0, vis)
+            cv2.line(vis, (cx, 0), (cx, h-1), color, 2)
+            cv2.putText(vis, f"V x={cx} ({ln['width_px']}px)",
+                        (max(0, cx - 55), 28),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2, cv2.LINE_AA)
         else:
-            cy = (line['start_row'] + line['end_row']) // 2
-            cv2.line(vis, (0, cy), (w - 1, cy), color, draw_thickness)
-            label = f"H y={cy} w={line['width_px']}px"
-            cv2.putText(vis, label, (5, cy - 8),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2, cv2.LINE_AA)
+            lo, hi, cy = ln['start_row'], ln['end_row'], ln['centre']
+            overlay = vis.copy()
+            cv2.rectangle(overlay, (0, lo), (w-1, hi), color, -1)
+            cv2.addWeighted(overlay, OVERLAY_ALPHA, vis, 1-OVERLAY_ALPHA, 0, vis)
+            cv2.line(vis, (0, cy), (w-1, cy), color, 2)
+            cv2.putText(vis, f"H y={cy} ({ln['width_px']}px)",
+                        (8, max(18, cy - 6)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2, cv2.LINE_AA)
 
     cv2.imwrite(output_path, vis)
-    print(f"  Saved: {output_path}")
+    print(f"  Saved → {output_path}")
 
-    # Print for debugging
-    print(f"\n  {'─' * 50}")
+    # Report
+    print(f"\n  {'─'*50}")
     print(f"  Total glare lines detected: {len(all_lines)}")
     for i, ln in enumerate(all_lines):
         if ln['type'] == 'vertical':
-            print(f"    [{i + 1}] VERTICAL   cols {ln['start_col']}–{ln['end_col']}"
-                  f"  width={ln['width_px']}px")
+            print(f"    [{i+1}] VERTICAL    cols {ln['start_col']}–{ln['end_col']}"
+                  f"  centre={ln['centre']}  width={ln['width_px']}px"
+                  f"  score={ln['peak_score']:.3f}")
         else:
-            print(f"    [{i + 1}] HORIZONTAL rows {ln['start_row']}–{ln['end_row']}"
-                  f"  width={ln['width_px']}px")
+            print(f"    [{i+1}] HORIZONTAL  rows {ln['start_row']}–{ln['end_row']}"
+                  f"  centre={ln['centre']}  width={ln['width_px']}px"
+                  f"  score={ln['peak_score']:.3f}")
 
     return all_lines
 
 
 if __name__ == "__main__":
     glare1 = detect_glare(IMAGE_PATH1, OUTPUT_PATH1)
-    print(f"\n  → Anomaly image total: {len(glare1)} glare line(s)\n")
+    print(f"\n  → Anomaly image: {len(glare1)} glare line(s)\n")
     print("=" * 60)
     glare2 = detect_glare(IMAGE_PATH2, OUTPUT_PATH2)
-    print(f"\n  → Control image total: {len(glare2)} glare line(s)\n")
+    print(f"\n  → Control image: {len(glare2)} glare line(s)\n")
