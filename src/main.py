@@ -1,7 +1,7 @@
 from utils.io_tools import get_gdf_content
 from core.pipeline_anomaly_detection import start_anomaly_analysis
 from pathlib import Path
-from services.sosi_converter_service import convert_sosi_to_gpkg, convert_sosi_to_geojson
+from services.sosi_converter_service import convert_sosi_to_gpkg
 import argparse
 
 

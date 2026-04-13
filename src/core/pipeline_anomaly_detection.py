@@ -4,12 +4,28 @@ from core import crop_arrays_binary
 from core.color_diff import check_difference_two_images
 from pathlib import Path
 import time
-from controller.image_cache_controller import  load_two_image_arrays, load_image_array
+from controller.image_cache_controller import  load_two_image_arrays
 import geopandas as gpd
 import numpy as np
 import core.water_detector as wd
+from core.line_detector import detect_glare
 from entity.image.Image import Image
 import core.artifact_detector as ad
+
+def start_glare_detection_analysis(arr: np.ndarray, img_path: Path):
+    """
+    Run glare detection on a preloaded image array.
+
+    Args:
+        arr: (C, H, W) array already loaded in cache
+        img_path: used for output file naming
+    """
+    glare  = detect_glare(arr)
+
+    print("----------- Glare Detection -------------")
+    print(f"Image {img_path.name}: {len(glare)} glare line(s)")
+    for ln in glare:
+        print(f"  {ln['type']}  centre={ln['centre']}  width={ln['width_px']}px  score={ln['peak_score']:.3f}")
 
 def start_artifact_detection_analysis(image, increment):
     before = datetime.now()
@@ -105,6 +121,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path,*
 
         start_artifact_detection_analysis(image1, 100)
         start_color_difference_analysis(sosi_gdf, i, arr1, arr2)
+        start_glare_detection_analysis(arr1, img1_path)
 
         print("\n")
 

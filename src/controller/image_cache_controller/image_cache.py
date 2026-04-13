@@ -2,7 +2,6 @@ from osgeo import gdal
 import numpy as np
 from pathlib import Path
 from utils.io_tools import read_tiff_fast, load_tiff_dataset
-from os import path
 
 class ImageCache:
     """
