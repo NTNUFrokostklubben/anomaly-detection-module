@@ -319,7 +319,7 @@ class DbConnector:
                                            SELECT MAX(confidence) FROM analysis_data WHERE img_id = ?
                                              """, (img_file_name, )).fetchone()
             self.commit()
-            return analysis_data[0]
+            return float(analysis_data[0])
         except sql.DatabaseError:
             return None
 

@@ -2,6 +2,7 @@ from pathlib import Path
 
 import grpc
 
+from entity import Image
 from entity.anomaly.ProjectMetadata import ProjectMetadata
 from skavl_proto import anomaly_pb2_grpc, anomaly_pb2
 from utils import DbConnector
@@ -43,7 +44,7 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
         """
 
         project_metadata = self._resolve_project_metadata(request.project_metadata,
-                                                         context)
+                                                          context)
         found_project = self.db_connection.get_project(project_metadata.project_name)
 
         if found_project is not None:
@@ -72,6 +73,7 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
         Returns:
 
         """
+
         project_metadata = self._resolve_project_metadata(request.project_metadata, context)
 
         image_folder_path = Path(project_metadata.image_folder_path)
@@ -79,14 +81,48 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
         # Convert sosi to gpkg
         gdf = convert_sosi_get_gdf(Path(project_metadata.sosi_path))
 
+        detected_anomalies: list[Image] = []
+
         if project_metadata.sosi_water_mask_path:
             # Convert Water polygon sosi to gpkg and run analysis with water mask
             water_gdf = convert_sosi_get_gdf(Path(project_metadata.sosi_water_mask_path))
-            start_anomaly_analysis(gdf, image_folder_path, water_gdf=water_gdf)
+            detected_anomalies = start_anomaly_analysis(gdf, image_folder_path, water_gdf=water_gdf)
         else:
-            start_anomaly_analysis(gdf, image_folder_path)
+            detected_anomalies = start_anomaly_analysis(gdf, image_folder_path)
 
         print("AnomalyServiceServicer.DetectAnomalySet")
+
+        anomaly_sets: list[anomaly_pb2.AnomalySet] = []
+        # Map to AnomalySet and build up a DetectAnomalySetResponse with all anomalies from here
+        for anomaly in detected_anomalies:
+            anomaly_sets.append(
+                anomaly_pb2.AnomalySet(
+                    image_name=anomaly.img_id,
+                    anomaly_confidence=anomaly.max_confidence,
+                    line_number=anomaly.line,
+                    image_number=anomaly.line_number,
+                    geotiff_coordinate=anomaly_pb2.UtmCoordinate(
+                        easting=0,
+                        northing=0
+                    )
+                )
+            )
+
+        anomaly_response: anomaly_pb2.AnomalyResponse = anomaly_pb2.AnomalyResponse(
+            project_metadata=anomaly_pb2.ProjectMetadata(
+                project_name=project_metadata.project_name,
+                sosi_file_path=project_metadata.sosi_path,
+                image_folder_path=project_metadata.image_folder_path,
+                sosi_water_mask_path=project_metadata.sosi_water_mask_path
+            ),
+            last_processed_index=len(anomaly_sets),
+            anomaly_sets=anomaly_sets
+        )
+
+        return anomaly_pb2.DetectAnomalySetResponse(
+            anomaly_response=anomaly_response
+        )
+
 
         context.abort(grpc.StatusCode.UNIMPLEMENTED, "Not fully implemented yet")
 
