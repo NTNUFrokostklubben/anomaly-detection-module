@@ -86,7 +86,7 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i:int, arr1: np.ndarr
     print(f"Confidence level: {confidence_level}")
     print(f"Time analysis: {t:.6f}s\n")
 
-def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, water_gdf, image_folder_path: Path):
+def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, * ,water_gdf: gpd.GeoDataFrame = None):
     """
     Start anomaly analysis
     Args:
@@ -97,6 +97,8 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, water_gdf, image_folder_p
     image_count = len(sosi_gdf)
 
     t0 = time.perf_counter()
+
+    anomaly_sets = []
     for i in range(image_count - 1):
 
         img1_path = image_folder_path / sosi_gdf.iloc[i]["bildefilRGB"]
@@ -124,7 +126,11 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, water_gdf, image_folder_p
         print(f"Max confidence level for image {image1.img_id}: {image1.max_confidence}")
 
         print("\n")
+        image1.img_arr = None
+        image1.dataset = None
+        anomaly_sets.append(image1)
 
 
     print("Overall time:", time.perf_counter() - t0)
     print(f"Found {image_count} images in the GeoPackage.")
+    return anomaly_sets
