@@ -50,7 +50,6 @@ def detect_artifact_consistency(images: list[image.Image], increment: int) -> fl
              High values indicate the block varies across images — genuine scene content.
     """
 
-
     conn = db.DbConnector()
     line_values = conn.get_artifact_data_line(images[0].prefix, images[0].line)
     if line_values is None and len(images) < 2:

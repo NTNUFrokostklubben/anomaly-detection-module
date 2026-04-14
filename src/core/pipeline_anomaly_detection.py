@@ -1,16 +1,31 @@
 from datetime import datetime
-
-from core import crop_arrays_binary
 from core.color_diff import check_difference_two_images
 from pathlib import Path
 import time
-from controller.image_cache_controller import  load_two_image_arrays
+from controller.image_cache_controller import load_two_image_arrays
 import geopandas as gpd
 import numpy as np
 import core.water_detector as wd
+from core.line_artifact_detector import detect_glare
 from entity.image.Image import Image
 import core.artifact_detector as ad
 from utils.db_connector import DbConnector, AnalysisType
+
+
+def start_glare_detection_analysis(arr: np.ndarray, img_path: Path):
+    """
+    Run glare detection on a preloaded image array.
+
+    Args:
+        arr: (C, H, W) array already loaded in cache
+        img_path: used for output file naming
+    """
+
+    print("----------- Glare Detection -------------")
+    glare = detect_glare(arr, img_path)
+    for ln in glare:
+        print(f"  {ln['type']}  centre={ln['centre']}  width={ln['width_px']}px  score={ln['peak_score']:.3f}")
+
 
 def start_artifact_detection_analysis(image, increment):
     before = datetime.now()
@@ -19,13 +34,12 @@ def start_artifact_detection_analysis(image, increment):
     t = (after - before).total_seconds()
     db = DbConnector()
     if values is not None:
-        print("----------- artifact analysis -------------")
+        print("----------- Artifact Analysis -------------")
 
         print(f"Analysing artifacts in image{image.img_id}")
         print(f"Artifact candidates: {np.sort(values.flatten())[:20]}")
         print(f"Time analysis: {t:.6f}s\n")
         db.add_analysis(image.img_id, AnalysisType.ARTIFACT, ad.artifact_confidence(np.min(values.flatten())))
-
 
 
 def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, water_gdf: gpd.GeoDataFrame):
@@ -53,8 +67,7 @@ def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, wat
     print(f"Time analysis: {t_1 - t_0:.6f}s\n")
 
 
-
-def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i:int, arr1: np.ndarray, arr2: np.ndarray, image: Image):
+def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndarray, arr2: np.ndarray, image: Image):
     """
     Start colour difference analysis
 
@@ -82,7 +95,7 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i:int, arr1: np.ndarr
     print(f"Image {gdf.iloc[i]['bildenummer']} avg: {avg1}")
     print(f"Image {gdf.iloc[i + 1]['bildenummer']} avg: {avg2}")
     print(f"Difference: {diff}")
-    print(f"Difference normalised: {diff/255}")
+    print(f"Difference normalised: {diff / 255}")
     print(f"Confidence level: {confidence_level}")
     print(f"Time analysis: {t:.6f}s\n")
 
@@ -120,6 +133,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
 
         start_artifact_detection_analysis(image1, 50)
         start_color_difference_analysis(sosi_gdf, i, arr1, arr2, image1)
+        start_glare_detection_analysis(arr1, img1_path)
 
         db = DbConnector()
         image1.max_confidence = db.get_max_confidence_img(image1.img_id)
@@ -129,7 +143,6 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         image1.img_arr = None
         image1.dataset = None
         anomaly_sets.append(image1)
-
 
     print("Overall time:", time.perf_counter() - t0)
     print(f"Found {image_count} images in the GeoPackage.")

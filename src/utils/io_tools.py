@@ -3,6 +3,7 @@ import geopandas as gpd
 import numpy as np
 from osgeo import gdal
 import tifffile as tf
+gdal.UseExceptions()
 
 from services.sosi_converter_service import convert_sosi_to_gpkg
 
@@ -40,9 +41,9 @@ def load_tiff_dataset(path: str | Path) ->  gdal.Dataset:
     :param path: path to the tiff image
     :return: the gdal dataset.
     """
-    ds = gdal.OpenEx(path)
+    ds = gdal.Open(str(path), gdal.GA_ReadOnly)
     if ds is None:
-        raise ValueError(f"Could not open image: {path}")
+        raise FileNotFoundError(f"GDAL could not open: {path}")
     return ds
 
 def read_tiff_fast(path, *, series: int = None, level: int = None) -> np.ndarray[tuple[int, int, int]]:
