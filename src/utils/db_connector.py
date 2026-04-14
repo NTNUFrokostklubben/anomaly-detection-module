@@ -244,10 +244,9 @@ class DbConnector:
             result = cursor.fetchone()
             if result is None:
                 return None
-            print(f"get_project fetchone result: {result}")
             return ProjectMetadata.from_row(cursor.fetchone())
         except Exception as e:
-            print(f"get_project error: {e}")
+            # print(f"get_project error: {e}")
             return None
 
     def get_artifact_data_line(self, prefix: str, line: int) -> list[np.ndarray] | None:
