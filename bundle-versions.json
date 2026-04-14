@@ -3,6 +3,10 @@
     "version": "1.1.0",
     "sha256": "590F816B8FFD9FCCDFE1381526BA68149DECC83A74ED454C9B6D98D07DC3AF95"
   },
+  "sosi-driver-bundle-linux": {
+    "version": "v1.0.0",
+    "sha256": "..."
+  },
   "anomaly-detection-test-data": {
     "version": "1.0.0",
     "sha256": "B3ED964A5EB3E40D93453204BA1CDF36219443279554054C4B4F78CCA8F98F65"

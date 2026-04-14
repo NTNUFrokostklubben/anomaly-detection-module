@@ -34,11 +34,12 @@ if sys.platform.startswith("linux"):
     binaries += [(str(conda_lib / "libnsl.so.3"), ".")]
 
 a = Analysis(
-    [str(Path("src") / "main.py")],
+    [str(Path("src") / "server.py")],
     pathex=[],
     binaries=binaries,
     datas=[
         ('lib/bundle', 'lib/bundle'),
+        (str(Path("src") / "utils" / "schema.sql"), 'utils'),
         (str(Path(sys.prefix) / 'Lib' / 'site-packages' / 'chardet' / 'models'), 'chardet/models'),
         (str(Path(sys.prefix) / 'Lib' / 'site-packages' / 'cv2' / 'python-3.12'), 'cv2/python-3.12'),
     ],

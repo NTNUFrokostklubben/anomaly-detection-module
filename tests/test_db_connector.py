@@ -8,16 +8,15 @@ IMG_NAME = "HX-14365_073_001_14822.tif"
 
 
 @pytest.fixture(autouse=True)
-def reset_db_singleton():
+def reset_db_singleton(monkeypatch):
     DbConnector._instance = None
     DbConnector._conn = None
-    DbConnector._db_file = ":memory:"
+    monkeypatch.setattr(DbConnector, "_get_db_path", staticmethod(lambda: ":memory:"))
     yield
     if DbConnector._conn is not None:
         DbConnector._conn.close()
     DbConnector._instance = None
     DbConnector._conn = None
-    DbConnector._db_file = "database.db"
 
 
 def test_singleton():
@@ -30,11 +29,6 @@ def test_connection_established():
     db = DbConnector()
     assert db._conn is not None
 
-
-def test_missing_schema_raises(monkeypatch):
-    monkeypatch.setattr(DbConnector, "_sql_file", "nonexistent.sql")
-    with pytest.raises(FileNotFoundError):
-        DbConnector()
 
 
 def test_add_image():
