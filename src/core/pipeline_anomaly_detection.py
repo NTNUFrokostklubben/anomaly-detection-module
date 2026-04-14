@@ -8,7 +8,7 @@ from controller.image_cache_controller import load_two_image_arrays
 import geopandas as gpd
 import numpy as np
 import core.water_detector as wd
-from core.line_detector import detect_glare
+from core.line_artifact_detector import detect_glare
 from entity.image.Image import Image
 import core.artifact_detector as ad
 

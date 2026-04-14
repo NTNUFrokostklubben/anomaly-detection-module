@@ -16,7 +16,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from core.line_detector import detect_glare
+from core.line_artifact_detector import detect_glare
 
 # Paths (edit these for quick runs without CLI args)
 DEFAULT_IMAGE = Path(
