@@ -6,6 +6,7 @@ import argparse
 
 
 def main():
+    # TODO: this should be moved and received from the user in SKAVL
     print("main method")
     # Args
     parser = argparse.ArgumentParser(
@@ -20,8 +21,6 @@ def main():
     water_input = args.water_input
     image_path = args.image_path
 
-    # TODO: this should be moved and recived from the user in SKAVL
-
     # Convert sosi to gpkg
     input_file = Path(sosi_input)
     converted_sosi = sosi_input.replace(".sos", ".gpkg")
@@ -29,17 +28,19 @@ def main():
     convert_sosi_to_gpkg(str(input_file),gpk_path)
 
     # Convert water sosi to gpkg
-    input_water_file = Path(water_input)
-    converted_water_sosi = water_input.replace(".SOS", ".gpkg")
-    water_gpk_path = Path(__file__).parent.parent / "test_data" / converted_water_sosi
-    convert_sosi_to_gpkg(str(input_water_file), water_gpk_path)
+    water_gdf = None
+    if water_input is not None:
+        input_water_file = Path(water_input)
+        converted_water_sosi = water_input.replace(".SOS", ".gpkg")
+        water_gpk_path = Path(__file__).parent.parent / "test_data" / converted_water_sosi
+        convert_sosi_to_gpkg(str(input_water_file), water_gpk_path)
+        water_gdf = get_gdf_content(water_gpk_path)
 
     # Set image path from args
     image_folder_path = Path(image_path)
-
     sosi_gdf = get_gdf_content(gpk_path)
-    water_gdf = get_gdf_content(water_gpk_path)
-    start_anomaly_analysis(sosi_gdf, water_gdf, image_folder_path)
+
+    start_anomaly_analysis(sosi_gdf, image_folder_path, water_gdf=water_gdf)
 
 
 if __name__ == "__main__":

@@ -3,11 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.signal import find_peaks
 from pathlib import Path
-from controller.image_cache_controller import load_image_array
 from utils.timer import Timer
-
-IMAGE_PATH1 = Path(__file__).parent.parent.parent.parent / "HX_14365_NORDMORE_GSD10" / "lines_nordmore_Nord_2021-CO12825" / "CO-12825_029_027_0644.tif"
-IMAGE_PATH2 = Path(__file__).parent.parent.parent.parent / "HX_14365_NORDMORE_GSD10" / "lines_nordmore_Nord_2021-CO12825" / "HX-14365_073_001_14822.tif"
 
 # Gaussian σ (pixels) for scene-brightness blur along one axis.
 HIGHPASS_SIGMA = 80
@@ -16,11 +12,11 @@ HIGHPASS_SIGMA = 80
 N_BANDS = 25
 
 # A column/row is a glare candidate when BOTH hold:
-CONSISTENCY_MIN = 0.90   # ≥% of bands agree in sign
-MAGNITUDE_MIN   = 0.10   # median per-band |z-score|
+CONSISTENCY_MIN = 0.90  # ≥% of bands agree in sign
+MAGNITUDE_MIN = 0.10  # median per-band |z-score|
 
 # Peak-detection parameters
-PEAK_MIN_DISTANCE   = 15    # minimum px separation between two distinct peaks
+PEAK_MIN_DISTANCE = 15  # minimum px separation between two distinct peaks
 PEAK_MIN_PROMINENCE = 0.05  # peak must rise above its valley neighbours by this
 
 # Decay-walk: extent boundary is where score drops below this fraction of peak.
@@ -31,6 +27,7 @@ MIN_STRIPE_WIDTH = 5
 
 # A stripe must span ≥ this fraction of the image in the perpendicular direction.
 COVERAGE_MIN = 0.85
+
 
 def _load_gray_from_array(arr: NDArray, timer: Timer) -> NDArray[np.float32]:
     """
@@ -54,7 +51,7 @@ def _load_gray_from_array(arr: NDArray, timer: Timer) -> NDArray[np.float32]:
         return cv2.normalize(gray_u8, None, 0, 255, cv2.NORM_MINMAX).astype(np.float32)
 
 
-def _highpass(gray: NDArray[np.float32], sigma: int, axis: str, timer: Timer,) -> NDArray[np.float32]:
+def _highpass(gray: NDArray[np.float32], sigma: int, axis: str, timer: Timer, ) -> NDArray[np.float32]:
     """
     Creates a highpass downsampled blur on the images to
     Args:
@@ -67,13 +64,13 @@ def _highpass(gray: NDArray[np.float32], sigma: int, axis: str, timer: Timer,) -
         the array of the greyscale and blured image
     """
     with timer.measure(f"highpass: downsampled blur ({axis})"):
-        SCALE   = 4
-        h, w    = gray.shape
+        SCALE = 4
+        h, w = gray.shape
         sigma_s = sigma / SCALE
-        ksize   = int(6 * sigma_s) | 1
+        ksize = int(6 * sigma_s) | 1
 
-        small  = cv2.resize(gray, (w // SCALE, h // SCALE),
-                            interpolation=cv2.INTER_AREA)
+        small = cv2.resize(gray, (w // SCALE, h // SCALE),
+                           interpolation=cv2.INTER_AREA)
         if axis == 'col':
             blur_s = cv2.GaussianBlur(small, (ksize, 1), sigmaX=sigma_s, sigmaY=0)
         else:
@@ -85,11 +82,12 @@ def _highpass(gray: NDArray[np.float32], sigma: int, axis: str, timer: Timer,) -
 
         return gray - blur
 
+
 def _score_profile(
-    residual: NDArray[np.float32],
-    axis: str,
-    n_bands: int,
-    timer: Timer,
+        residual: NDArray[np.float32],
+        axis: str,
+        n_bands: int,
+        timer: Timer,
 ) -> tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
     """
     Compute per-column (or per-row) consistency, magnitude, and score.
@@ -129,9 +127,9 @@ def _score_profile(
 
 
 def _valley_boundary(
-    score: NDArray[np.float32],
-    peaks: list[int],
-    i: int,
+        score: NDArray[np.float32],
+        peaks: list[int],
+        i: int,
 ) -> tuple[int, int]:
     """
     Find left/right bounds for peak in using the score-minimum (valley) between
@@ -151,20 +149,20 @@ def _valley_boundary(
     if i == 0:
         lo = 0
     else:
-        seg = score[peaks[i-1] : p + 1]
-        lo  = peaks[i-1] + int(np.argmin(seg))
+        seg = score[peaks[i - 1]: p + 1]
+        lo = peaks[i - 1] + int(np.argmin(seg))
     if i == len(peaks) - 1:
         hi = n - 1
     else:
-        seg = score[p : peaks[i+1] + 1]
-        hi  = p + int(np.argmin(seg)) - 1
+        seg = score[p: peaks[i + 1] + 1]
+        hi = p + int(np.argmin(seg)) - 1
     return lo, hi
 
 
 def _decay_boundary(
-    score: NDArray[np.float32],
-    p: int,
-    decay: float,
+        score: NDArray[np.float32],
+        p: int,
+        decay: float,
 ) -> tuple[int, int]:
     """
     Walk outward from peak p until score < decay × peak_score.
@@ -181,23 +179,23 @@ def _decay_boundary(
     threshold = score[p] * decay
     n = len(score)
     lo, hi = p, p
-    while lo > 0     and score[lo - 1] >= threshold: lo -= 1
+    while lo > 0 and score[lo - 1] >= threshold: lo -= 1
     while hi < n - 1 and score[hi + 1] >= threshold: hi += 1
     return lo, hi
 
 
 def _detect_axis(
-    gray: NDArray[np.float32],
-    axis: str,
-    sigma: int,
-    n_bands: int,
-    cons_min: float,
-    mag_min: float,
-    peak_min_dist: int,
-    peak_min_prom: float,
-    extent_decay: float,
-    min_width: int,
-    timer: Timer,
+        gray: NDArray[np.float32],
+        axis: str,
+        sigma: int,
+        n_bands: int,
+        cons_min: float,
+        mag_min: float,
+        peak_min_dist: int,
+        peak_min_prom: float,
+        extent_decay: float,
+        min_width: int,
+        timer: Timer,
 ) -> list[dict]:
     """
     Detect glare lines along one axis and return a list of line descriptors.
@@ -251,9 +249,9 @@ def _detect_axis(
             if width < min_width:
                 continue
 
-            region  = np.arange(lo, hi + 1)
+            region = np.arange(lo, hi + 1)
             weights = score[lo: hi + 1]
-            centre  = int(np.average(region, weights=weights)) \
+            centre = int(np.average(region, weights=weights)) \
                 if weights.sum() > 0 else (lo + hi) // 2
 
             if axis == 'col':
@@ -270,33 +268,17 @@ def _detect_axis(
     return lines
 
 
-# def _to_vis(raw: NDArray, timer: Timer) -> NDArray[np.uint8]:
-#     """
-#     Normalise raw image to uint8 BGR for visualisation.
-#
-#     Args:
-#         raw:   raw image array (any dtype, any channel count)
-#         timer: shared Timer instance
-#
-#     Returns:
-#         BGR uint8 image ready for annotation.
-#     """
-#     with timer.measure("to_vis: normalize + cvtColor"):
-#         vis = cv2.normalize(raw, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8) \
-#               if raw.dtype != np.uint8 else raw.copy()
-#         return cv2.cvtColor(vis, cv2.COLOR_GRAY2BGR) if vis.ndim == 2 else vis
-
-
 def detect_glare(
-    img_arr: NDArray,
-    highpass_sigma: int        = HIGHPASS_SIGMA,
-    n_bands: int               = N_BANDS,
-    consistency_min: float     = CONSISTENCY_MIN,
-    magnitude_min: float       = MAGNITUDE_MIN,
-    peak_min_distance: int     = PEAK_MIN_DISTANCE,
-    peak_min_prominence: float = PEAK_MIN_PROMINENCE,
-    extent_decay: float        = EXTENT_DECAY,
-    min_stripe_width: int      = MIN_STRIPE_WIDTH,
+        img_arr: NDArray,
+        img_path: Path,
+        highpass_sigma: int = HIGHPASS_SIGMA,
+        n_bands: int = N_BANDS,
+        consistency_min: float = CONSISTENCY_MIN,
+        magnitude_min: float = MAGNITUDE_MIN,
+        peak_min_distance: int = PEAK_MIN_DISTANCE,
+        peak_min_prominence: float = PEAK_MIN_PROMINENCE,
+        extent_decay: float = EXTENT_DECAY,
+        min_stripe_width: int = MIN_STRIPE_WIDTH,
 ) -> list[dict]:
     """
     Detect glare lines in an image, write an annotated PNG, and return line descriptors.
@@ -325,6 +307,8 @@ def detect_glare(
               peak_min_dist=peak_min_distance, peak_min_prom=peak_min_prominence,
               extent_decay=extent_decay, min_width=min_stripe_width, timer=timer)
 
+    print("Analysing image: ", img_path)
+
     print("  Scanning vertical glare …")
     v_lines = _detect_axis(gray, 'col', **kw)
     print(f"    → {len(v_lines)} line(s)")
@@ -336,29 +320,17 @@ def detect_glare(
     all_lines = v_lines + h_lines
 
     # Report
-    print(f"\n  {'─'*50}")
+    print(f"\n  {'─' * 50}")
     print(f"  Total glare lines detected: {len(all_lines)}")
     for i, ln in enumerate(all_lines):
         if ln['type'] == 'vertical':
-            print(f"    [{i+1}] VERTICAL    cols {ln['start_col']}–{ln['end_col']}"
+            print(f"    [{i + 1}] VERTICAL    cols {ln['start_col']}–{ln['end_col']}"
                   f"  centre={ln['centre']}  width={ln['width_px']}px"
                   f"  score={ln['peak_score']:.3f}")
         else:
-            print(f"    [{i+1}] HORIZONTAL  rows {ln['start_row']}–{ln['end_row']}"
+            print(f"    [{i + 1}] HORIZONTAL  rows {ln['start_row']}–{ln['end_row']}"
                   f"  centre={ln['centre']}  width={ln['width_px']}px"
                   f"  score={ln['peak_score']:.3f}")
 
-    timer.report(title="Timing report")
+    # timer.report(title="Timing report")
     return all_lines
-
-
-if __name__ == "__main__":
-    img_arr1, _ = load_image_array(IMAGE_PATH1)
-    glare1 = detect_glare(img_arr1)
-    print(f"\n  → Anomaly image: {len(glare1)} glare line(s)\n")
-
-    print("=" * 60)
-
-    img_arr2, _ = load_image_array(IMAGE_PATH2)
-    glare2 = detect_glare(img_arr2)
-    print(f"\n  → Control image: {len(glare2)} glare line(s)\n")
