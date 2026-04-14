@@ -16,16 +16,15 @@ def _img_id(line_number: int) -> str:
 
 
 @pytest.fixture(autouse=True)
-def reset_db_singleton():
+def reset_db_singleton(monkeypatch):
     DbConnector._instance = None
     DbConnector._conn = None
-    DbConnector._db_file = ":memory:"
+    monkeypatch.setattr(DbConnector, "_get_db_path", staticmethod(lambda: ":memory:"))
     yield
     if DbConnector._conn is not None:
         DbConnector._conn.close()
     DbConnector._instance = None
     DbConnector._conn = None
-    DbConnector._db_file = "database.db"
 
 
 def make_image(img_id=_TEST_IMG_ID, bands=3, height=10, width=10, value=128):
