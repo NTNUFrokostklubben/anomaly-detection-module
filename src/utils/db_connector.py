@@ -8,6 +8,8 @@ from utils.string_manip import slice_image_name
 import numpy as np
 from entity.enums.analysis_t import AnalysisType
 
+import sys
+
 class DbConnector:
     """
         Represents a singleton database connection, holds methods for CRUD operations.
@@ -18,8 +20,32 @@ class DbConnector:
     """
     _instance = None  # Class variable to store the single instance
     _conn = None        # holds the database connection.
-    _sql_file = Path(__file__).parent / 'schema.sql'     #Finds path to this files parent, then navigates to schema
-    _db_file = Path(__file__).parent.parent.parent / 'database.db'
+
+    @staticmethod
+    def _get_schema_path():
+        """
+        Static method for getting the schema path based on if project is run as dev or exe
+
+        Returns:
+            Schema path
+        """
+        if getattr(sys, 'frozen', False):
+            return Path(sys._MEIPASS) / 'utils' / 'schema.sql'
+        return Path(__file__).parent / 'schema.sql'
+
+    @staticmethod
+    def _get_db_path():
+        """
+        Static method for getting the db path based on if project is ran as dev or exe
+
+        Returns:
+            path to db
+        """
+        if getattr(sys, 'frozen', False):
+            return Path(sys._MEIPASS) / 'database.db'
+        return Path(__file__).parent.parent.parent / 'database.db'
+
+
 
     def __new__(cls, *args, **kwargs):
         """
@@ -37,15 +63,18 @@ class DbConnector:
         """
         Create the database connection
         """
+
         if self._conn is None:
-            if not exists(self._sql_file):
+            _sql_file = self._get_schema_path()    #Finds path to this files parent, then navigates to schema
+            _db_file = self._get_db_path()
+            if not exists(_sql_file):
                 raise FileNotFoundError('sql schema not found')
             try:
                 sql_script = ""
-                with open(self._sql_file, 'r') as f:
+                with open(_sql_file, 'r') as f:
                     sql_script = f.read()
 
-                self._conn = sql.connect(self._db_file, check_same_thread=False)
+                self._conn = sql.connect(_db_file, check_same_thread=False)
                 self._conn.execute("PRAGMA foreign_keys = ON")
                 self._conn.execute("PRAGMA journal_mode=WAL")
                 cursor = self._conn.cursor()
@@ -162,7 +191,7 @@ class DbConnector:
         try:
             cursor = self._conn.cursor()
             cursor.execute("""
-                           INSERT INTO projects (project_name, sosi_path, image_folder_path, sosi_water_path)
+                           INSERT OR IGNORE INTO projects (project_name, sosi_path, image_folder_path, sosi_water_path)
                            VALUES (?, ?, ?, ?)
                            """, (project_metadata.project_name, project_metadata.sosi_path,
                                  project_metadata.image_folder_path, project_metadata.sosi_water_mask_path))
@@ -212,8 +241,13 @@ class DbConnector:
                            FROM projects
                            WHERE project_name = ?
                            """, (project_name,))
+            result = cursor.fetchone()
+            if result is None:
+                return None
+            print(f"get_project fetchone result: {result}")
             return ProjectMetadata.from_row(cursor.fetchone())
-        except:
+        except Exception as e:
+            print(f"get_project error: {e}")
             return None
 
     def get_artifact_data_line(self, prefix: str, line: int) -> list[np.ndarray] | None:
