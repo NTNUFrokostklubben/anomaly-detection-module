@@ -2,24 +2,21 @@ from utils.io_tools import get_gdf_content
 from core.pipeline_anomaly_detection import start_anomaly_analysis
 from pathlib import Path
 from services.sosi_converter_service import convert_sosi_to_gpkg
-import argparse
 
 
-def main():
-    # TODO: this should be moved and received from the user in SKAVL
-    print("main method")
-    # Args
-    parser = argparse.ArgumentParser(
-        prog="main.py",
-        description="Anomaly detection in aerial images")
-    parser.add_argument("-i","--sosi-input")
-    parser.add_argument("-w","--water-input")
-    parser.add_argument("-p","--image-path")
+def cli_run(args):
 
-    args = parser.parse_args()
+    if args.sosi_input == None:
+        print("Missing Sosi Input path")
+        return
+    if args.image_path == None:
+        print("Missing image path")
+        return
     sosi_input = args.sosi_input
     water_input = args.water_input
     image_path = args.image_path
+
+    # TODO: this should be moved and received from the user in SKAVL
 
     # Convert sosi to gpkg
     input_file = Path(sosi_input)
@@ -41,7 +38,3 @@ def main():
     sosi_gdf = get_gdf_content(gpk_path)
 
     start_anomaly_analysis(sosi_gdf, image_folder_path, water_gdf=water_gdf)
-
-
-if __name__ == "__main__":
-    main()

@@ -11,8 +11,19 @@ class StartMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     START_RESTART: _ClassVar[StartMode]
     START_CONTINUE: _ClassVar[StartMode]
+
+class AnomalyTypes(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    UNDEFINED: _ClassVar[AnomalyTypes]
+    COLOR_AVERAGE: _ClassVar[AnomalyTypes]
+    WATER_MASK: _ClassVar[AnomalyTypes]
+    ARTIFACT: _ClassVar[AnomalyTypes]
 START_RESTART: StartMode
 START_CONTINUE: StartMode
+UNDEFINED: AnomalyTypes
+COLOR_AVERAGE: AnomalyTypes
+WATER_MASK: AnomalyTypes
+ARTIFACT: AnomalyTypes
 
 class UtmCoordinate(_message.Message):
     __slots__ = ("easting", "northing")
@@ -23,18 +34,20 @@ class UtmCoordinate(_message.Message):
     def __init__(self, easting: _Optional[float] = ..., northing: _Optional[float] = ...) -> None: ...
 
 class AnomalySet(_message.Message):
-    __slots__ = ("image_name", "anomaly_confidence", "line_number", "image_number", "geotiff_coordinate")
+    __slots__ = ("image_name", "anomaly_confidence", "anomaly_type", "line_number", "image_number", "geotiff_coordinate")
     IMAGE_NAME_FIELD_NUMBER: _ClassVar[int]
     ANOMALY_CONFIDENCE_FIELD_NUMBER: _ClassVar[int]
+    ANOMALY_TYPE_FIELD_NUMBER: _ClassVar[int]
     LINE_NUMBER_FIELD_NUMBER: _ClassVar[int]
     IMAGE_NUMBER_FIELD_NUMBER: _ClassVar[int]
     GEOTIFF_COORDINATE_FIELD_NUMBER: _ClassVar[int]
     image_name: str
     anomaly_confidence: float
+    anomaly_type: AnomalyTypes
     line_number: int
     image_number: int
     geotiff_coordinate: UtmCoordinate
-    def __init__(self, image_name: _Optional[str] = ..., anomaly_confidence: _Optional[float] = ..., line_number: _Optional[int] = ..., image_number: _Optional[int] = ..., geotiff_coordinate: _Optional[_Union[UtmCoordinate, _Mapping]] = ...) -> None: ...
+    def __init__(self, image_name: _Optional[str] = ..., anomaly_confidence: _Optional[float] = ..., anomaly_type: _Optional[_Union[AnomalyTypes, str]] = ..., line_number: _Optional[int] = ..., image_number: _Optional[int] = ..., geotiff_coordinate: _Optional[_Union[UtmCoordinate, _Mapping]] = ...) -> None: ...
 
 class AnomalyResponse(_message.Message):
     __slots__ = ("project_metadata", "last_processed_index", "anomaly_sets")

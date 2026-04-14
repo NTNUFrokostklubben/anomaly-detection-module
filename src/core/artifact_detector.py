@@ -1,3 +1,6 @@
+import math
+from typing import Any
+
 import numpy as np
 import core.water_detector as wd
 from numba import prange, njit
@@ -34,7 +37,8 @@ def calculate_average_color_block(img_arr: np.ndarray[tuple[int, int, int]],  in
     return color_values
 
 
-def detect_artifact_consistency(images: list[image.Image], increment: int) -> np.ndarray:
+
+def detect_artifact_consistency(images: list[image.Image], increment: int) -> float | None:
     """
     Detects artifact blocks by measuring color consistency across multiple images.
     A block that stays the same color across all images likely contains an artifact.
@@ -45,7 +49,6 @@ def detect_artifact_consistency(images: list[image.Image], increment: int) -> np
              Low values (near 0) indicate the block has the same color across all images — likely an artifact.
              High values indicate the block varies across images — genuine scene content.
     """
-
 
     conn = db.DbConnector()
     line_values = conn.get_artifact_data_line(images[0].prefix, images[0].line)
@@ -60,6 +63,26 @@ def detect_artifact_consistency(images: list[image.Image], increment: int) -> np
     if len(all_data) < 10:
         return None
 
-    stacked = np.stack(all_data)                                        # (N, num_blocks, 3)
-    return (stacked.max(axis=0) - stacked.min(axis=0)).sum(axis=1) / 3.0  # (num_blocks,)
+    stacked = np.stack(all_data)
+    # (N, num_blocks, 3)
+    consistency = (stacked.max(axis=0) - stacked.min(axis=0)).sum(axis=1) / 3.0  # (num_blocks,)
+    return consistency
 
+def artifact_confidence(x: float) -> float:
+    """
+    Maps a dissimilarity score in [0, 1] to a confidence value in [0, 1].
+
+    - Returns 1.0 at x = 0  (identical blocks → high confidence of artifact)
+    - Returns 0.0 at x >= 0.1 (too different → unlikely to be an artifact)
+    - Exponential decay in between: slow drop at first, then falls off fast
+
+    Args:
+        x: Dissimilarity score in [0, 1].
+        k: Steepness of the exponential curve. Higher = sharper drop.
+
+    Returns:
+        Confidence that the two images are the same, in [0, 1].
+    """
+    if x >= 0.01:
+        return 0.0
+    return 1.0 - (math.exp( x) - 1) / (math.exp(0.01) - 1)

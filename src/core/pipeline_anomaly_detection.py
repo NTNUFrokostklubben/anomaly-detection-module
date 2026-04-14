@@ -1,6 +1,4 @@
 from datetime import datetime
-
-from core import crop_arrays_binary
 from core.color_diff import check_difference_two_images
 from pathlib import Path
 import time
@@ -11,6 +9,7 @@ import core.water_detector as wd
 from core.line_artifact_detector import detect_glare
 from entity.image.Image import Image
 import core.artifact_detector as ad
+from utils.db_connector import DbConnector, AnalysisType
 
 
 def start_glare_detection_analysis(arr: np.ndarray, img_path: Path):
@@ -33,12 +32,14 @@ def start_artifact_detection_analysis(image, increment):
     values = ad.detect_artifact_consistency([image], increment)
     after = datetime.now()
     t = (after - before).total_seconds()
+    db = DbConnector()
     if values is not None:
         print("----------- Artifact Analysis -------------")
 
         print(f"Analysing artifacts in image{image.img_id}")
         print(f"Artifact candidates: {np.sort(values.flatten())[:20]}")
         print(f"Time analysis: {t:.6f}s\n")
+        db.add_analysis(image.img_id, AnalysisType.ARTIFACT, ad.artifact_confidence(np.min(values.flatten())))
 
 
 def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, water_gdf: gpd.GeoDataFrame):
@@ -46,22 +47,27 @@ def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, wat
     Start water detection analysis
     """
     increment = 30
-    before = datetime.now()
+    t_0 = time.monotonic()
     polygon_mask = wd.create_water_polygon_mask(water_gdf, sosig_df, image.img_id, image.dataset)
-    polygon_mask = wd.clean_water_mask(polygon_mask)
+    print(f"  polygon_mask:   {(time.monotonic() - t_0):.2f}s")
+    t = time.monotonic()
     hsl_mask = wd.create_water_mask_hsl(image.img_arr, increment, polygon_mask)
-    polygon_mask, hsl_mask = crop_arrays_binary(polygon_mask, hsl_mask)
+    print(f"  hsl_mask:       {(time.monotonic() - t):.2f}s")
+    t = time.monotonic()
     disagreement_ratio = wd.find_disagreement_ratio(polygon_mask, hsl_mask)
-    after = datetime.now()
-    t = (after - before).total_seconds()
+
+    confidence_level = wd.dissimilarity_confidence(disagreement_ratio)
+    t_1 = time.monotonic()
+    db = DbConnector()
+    db.add_analysis(image.img_id, AnalysisType.WATER_MASK, confidence_level)
     print("----------- Water  mask difference -------------")
 
     print(f"Analysing water mask in image{image.img_id}")
     print(f"Disagreement ratio between masks: {disagreement_ratio}")
-    print(f"Time analysis: {t:.6f}s\n")
+    print(f"Time analysis: {t_1 - t_0:.6f}s\n")
 
 
-def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndarray, arr2: np.ndarray):
+def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndarray, arr2: np.ndarray, image: Image):
     """
     Start colour difference analysis
 
@@ -70,6 +76,7 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
         i (int): The index of the first image to analyse
         arr1 (np.ndarray): The array of the first image to analyse
         arr2 (np.ndarray): The array of the second image to analyse
+        image (Image): The image object to add the analysis result to the database
     """
     avg1, avg2, diff, t, confidence_level = check_difference_two_images(
         gdf,
@@ -80,6 +87,8 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
         int(gdf.iloc[i + 1]["stripenummer"]),
         arr2,
     )
+    db = DbConnector()
+    db.add_analysis(image.img_id, AnalysisType.COLOR_AVERAGE, confidence_level)
 
     print("----------- Color Difference -------------")
     print(f"Comparing image {gdf.iloc[i]['bildenummer']} and image {gdf.iloc[i + 1]['bildenummer']}")
@@ -90,8 +99,7 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
     print(f"Confidence level: {confidence_level}")
     print(f"Time analysis: {t:.6f}s\n")
 
-
-def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, *, water_gdf: gpd.GeoDataFrame = None):
+def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, * ,water_gdf: gpd.GeoDataFrame = None):
     """
     Start anomaly analysis
     Args:
@@ -102,16 +110,19 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
     image_count = len(sosi_gdf)
 
     t0 = time.perf_counter()
+
+    anomaly_sets = []
     for i in range(image_count - 1):
 
         img1_path = image_folder_path / sosi_gdf.iloc[i]["bildefilRGB"]
         img2_path = image_folder_path / sosi_gdf.iloc[i + 1]["bildefilRGB"]
 
-        if not img1_path.exists() or not img2_path.exists():
+        if (not img1_path.exists() or not img2_path.exists()) or ( sosi_gdf.iloc[i]["stripenummer"] != sosi_gdf.iloc[i + 1]["stripenummer"]):
             continue
         image1: Image = Image.from_filename(sosi_gdf.iloc[i]["bildefilRGB"])
-        arr1, ds1, arr2, _, t_load = load_two_image_arrays(img1_path, img2_path)
+        arr1, ds1, arr2, ds2, t_load = load_two_image_arrays(img1_path, img2_path)
         image1.img_arr, image1.dataset = arr1, ds1
+
 
         print("------------------------------------------")
         print(f"Comparing image {sosi_gdf.iloc[i]['bildenummer']} and image {sosi_gdf.iloc[i + 1]['bildenummer']}")
@@ -120,11 +131,19 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         if water_gdf is not None:
             start_water_detection_analysis(image1, sosi_gdf, water_gdf)
 
-        start_artifact_detection_analysis(image1, 100)
-        start_color_difference_analysis(sosi_gdf, i, arr1, arr2)
+        start_artifact_detection_analysis(image1, 50)
+        start_color_difference_analysis(sosi_gdf, i, arr1, arr2, image1)
         start_glare_detection_analysis(arr1, img1_path)
 
+        db = DbConnector()
+        image1.max_confidence = db.get_max_confidence_img(image1.img_id)
+        print(f"Max confidence level for image {image1.img_id}: {image1.max_confidence}")
+
         print("\n")
+        image1.img_arr = None
+        image1.dataset = None
+        anomaly_sets.append(image1)
 
     print("Overall time:", time.perf_counter() - t0)
     print(f"Found {image_count} images in the GeoPackage.")
+    return anomaly_sets

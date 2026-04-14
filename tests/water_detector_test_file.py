@@ -1,3 +1,6 @@
+import time
+
+from matplotlib import pyplot as plt
 
 import core.water_detector as wd
 
@@ -67,55 +70,62 @@ def test_main():
 
     gdal.DontUseExceptions()
     contour_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\Vann_22.gpkg"
-    sosi_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\HX-14365_Vertikalbilde.gpkg"
-    #sosi_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\HX-13173_Vertikalbilde.gpkg"
+    #sosi_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\misc\HX-14365_Vertikalbilde.gpkg"
+    sosi_path = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\HX-13173_Vertikalbilde.gpkg"
     #img_name = "HX-14365_073_014_14835.tif"
-    #img_name = "HX-14365_073_047_14868.tif"
-    img_name = "HX-14365_073_001_14822.tif"
-   # img_name = "HX-13173_112_005_5550.tif"
+    #img_name = "HX-14365_073_006_14827.tif"
+    #img_name = "HX-14365_073_001_14822.tif"
+    img_name = "HX-13173_112_005_5550.tif"
     #folder = r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images"
     #wd.run_all_images(folder, contour_path, sosi_path, 30)
     gdf: gp.GeoDataFrame = gpd.read_file(contour_path, layer="polygons", encoding="ISO-8859-1")
     sosidf: gp.GeoDataFrame = gpd.read_file(sosi_path, layer="polygons", encoding="ISO-8859-1")
 
-   # img_arr = tf.imread(
-      # r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\\" + img_name,
-       # maxworkers=8)
     img_arr = tf.imread(
-          r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\" + img_name,
-         maxworkers=8)
+       r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\\" + img_name,
+        maxworkers=8)
+    #img_arr = tf.imread(
+    #      r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\" + img_name,
+     #    maxworkers=8)
 
 
     img_arr = np.ascontiguousarray(img_arr.transpose(2, 0, 1))
-    #ds = load_geotiff_dataset(
-    #    r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\\"+ img_name)
     ds = load_tiff_dataset(
-        r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\"+ img_name)
+        r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\anomaly_images\Romsdal-2022-HX13173\\"+ img_name)
+    #ds = load_tiff_dataset(
+     #   r"C:\Users\name\Skule\2026-vaar\IDATA2901-bachelor-thesis\testing-images\\"+ img_name)
     # img_arr = np.ascontiguousarray(img_arr.transpose(2, 0, 1))
 
-    before = datetime.now()
+    before_poly = time.monotonic()
     polygon_mask = wd.create_water_polygon_mask(gdf, sosidf, img_name, ds)
-    polygon_mask = wd.clean_water_mask(polygon_mask)
-
+    #polygon_mask = wd.clean_water_mask(polygon_mask)
+    after_poly = time.monotonic()
+    """plt.imshow(polygon_mask)
+    plt.show()
     rows, cols = np.nonzero(polygon_mask)
     polygon_mask = polygon_mask[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
     img_arr = img_arr[:, rows.min():rows.max() + 1, cols.min():cols.max() + 1]
-
+    """
+    before_hsl = time.monotonic()
     hsl_mask = wd.create_water_mask_hsl(img_arr, 30, polygon_mask)
-
-    disagreement = polygon_mask.astype(np.bool_) ^ hsl_mask.astype(np.bool_)
-    disagreement_count = np.sum(disagreement)
-    disagreement_ratio = disagreement_count / polygon_mask.size
-
-    after = datetime.now()
-    print(after - before)
-    print(disagreement_ratio)
+    #hsl_mask = wd.clean_water_mask(hsl_mask)
+    after_hsl = time.monotonic()
+    disagreement_ratio = wd.find_disagreement_ratio(hsl_mask, polygon_mask)
 
 
-    #masked_img = img_arr * mask[np.newaxis, ...]
-    #masked_img = np.ascontiguousarray(masked_img.transpose(1, 2, 0))
-    #plt.imshow(masked_img)
-    #plt.show()
+    print(f"time to create water polygon mask: {after_poly - before_poly}")
+    print(f"time to create water hsl mask: {after_hsl - before_hsl}")
+    print(f" Disagreement ratio: {disagreement_ratio}")
+
+
+    """masked_img1 = img_arr * polygon_mask[np.newaxis, ...]
+    masked_img1 = np.ascontiguousarray(masked_img1.transpose(1, 2, 0))
+    masked_img2 = img_arr * hsl_mask[np.newaxis, ...]
+    masked_img2 = np.ascontiguousarray(masked_img2.transpose(1, 2, 0))
+    plt.imshow(masked_img1)
+    plt.show()
+    plt.imshow(masked_img2)
+    plt.show()"""
 
 """ rows, cols = np.nonzero(polygon_mask)
     polygon_mask = polygon_mask[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
