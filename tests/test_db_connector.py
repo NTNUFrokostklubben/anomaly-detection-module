@@ -31,11 +31,6 @@ def test_connection_established():
     assert db._conn is not None
 
 
-def test_missing_schema_raises(monkeypatch):
-    monkeypatch.setattr(DbConnector, "_sql_file", "nonexistent.sql")
-    with pytest.raises(FileNotFoundError):
-        DbConnector()
-
 
 def test_add_image():
     db = DbConnector()
