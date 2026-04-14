@@ -16,6 +16,7 @@ binaries += collect_conda_dynamic_libs("pillow", dependencies=True)
 binaries += collect_conda_dynamic_libs("rasterio", dependencies=True)
 binaries += collect_conda_dynamic_libs("opencv", dependencies=True)
 binaries += collect_conda_dynamic_libs("pyogrio", dependencies=True)
+binaries += collect_conda_dynamic_libs("grpcio", dependencies=True)
 
 # This WILL need to be updated as source code changes and more code is added.
 hiddenimports += collect_submodules("rasterio")
@@ -25,6 +26,7 @@ hiddenimports += collect_submodules("geopandas")
 hiddenimports += collect_submodules("tifffile")
 hiddenimports += collect_submodules("imagecodecs")
 hiddenimports += collect_submodules("pyogrio")
+hiddenimports += collect_submodules("grpc")
 
 # Linux-specific dependency (required by GDAL stack)
 if sys.platform.startswith("linux"):
@@ -32,11 +34,12 @@ if sys.platform.startswith("linux"):
     binaries += [(str(conda_lib / "libnsl.so.3"), ".")]
 
 a = Analysis(
-    [str(Path("src") / "main.py")],
+    [str(Path("src") / "server.py")],
     pathex=[],
     binaries=binaries,
     datas=[
         ('lib/bundle', 'lib/bundle'),
+        (str(Path("src") / "utils" / "schema.sql"), 'utils'),
         (str(Path(sys.prefix) / 'Lib' / 'site-packages' / 'chardet' / 'models'), 'chardet/models'),
         (str(Path(sys.prefix) / 'Lib' / 'site-packages' / 'cv2' / 'python-3.12'), 'cv2/python-3.12'),
     ],

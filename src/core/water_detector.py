@@ -62,9 +62,9 @@ def _block_has_mask(polygon_mask: np.ndarray, y_start: int, y_end: int, x_start:
 
 
 @njit(cache=True)
-def _block_mean_rgb(data: np.ndarray, polygon_mask: np.ndarray, y_start: int, y_end: int, x_start: int, x_end: int) -> tuple:
+def block_mean_rgb(data: np.ndarray, y_start: int, y_end: int, x_start: int, x_end: int, polygon_mask: np.ndarray | None) -> tuple:
     """
-    Computes the mean normalised RGB values for all masked pixels within the block.
+    Computes the mean normalised RGB values for all pixels within the block, optional mask check.
 
     :param data: image array of shape (3, H, W) with uint8 pixel values.
     :param polygon_mask: 2D boolean array where True marks pixels inside the polygon.
@@ -74,13 +74,16 @@ def _block_mean_rgb(data: np.ndarray, polygon_mask: np.ndarray, y_start: int, y_
     :param x_end: last column index of the block (exclusive).
     :return: tuple (r_mean, g_mean, b_mean) in the range [0.0, 1.0].
     """
+    no_mask = False
+    if polygon_mask is None:
+        no_mask = True
     r_sum = 0.0
     g_sum = 0.0
     b_sum = 0.0
     count = 0
     for y in range(y_start, y_end):
         for x in range(x_start, x_end):
-            if polygon_mask[y, x]:
+            if no_mask or polygon_mask[y, x]:
                 r_sum += data[0, y, x]
                 g_sum += data[1, y, x]
                 b_sum += data[2, y, x]
@@ -163,7 +166,7 @@ def _fill_block(mask: np.ndarray, polygon_mask: np.ndarray, y_start: int, y_end:
 
 
 @njit(parallel=True, cache=True)
-def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int, *, constraint_region: np.ndarray[tuple[bool, bool]]) -> np.ndarray:
+def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int, *, constraint_region: np.ndarray[tuple[bool]]) -> np.ndarray:
     """
     Create a mask outlining the water on an image using a jumping block algorithm. Optionally allows for looking
      only within a constrained region of the full image.
@@ -195,7 +198,7 @@ def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int
                 previous = False
                 continue
 
-            r_mean, g_mean, b_mean = _block_mean_rgb(data, constraint_region, y_start, y_end, x_start, x_end)
+            r_mean, g_mean, b_mean = block_mean_rgb(data, y_start, y_end, x_start, x_end, constraint_region)
             h, chroma = _rgb_to_hue(r_mean, g_mean, b_mean)
 
             if WATER_HUE_MIN < h < WATER_HUE_MAX and chroma > WATER_CHROMA_MIN:
@@ -301,8 +304,12 @@ def clean_water_mask(mask_array: ndarray[tuple[int, int]], max_size=CLEAN_MASK_M
     :return: cleaned: ndarray (bool) - True where water, False elsewhere
     """
 
-    cleaned = morphology.remove_small_objects(mask_array, max_size=max_size)
-    return cleaned
+    n_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+        mask_array.view(np.uint8), connectivity=8
+    )
+    keep = np.zeros(n_labels, dtype=bool)
+    keep[1:] = stats[1:, cv2.CC_STAT_AREA] > max_size
+    return keep[labels]
 
 
 
@@ -323,6 +330,39 @@ def detect_holes(mask: ndarray[tuple[bool, bool]]) -> ndarray[tuple[int, int]]:
 
 
 
+def _affine_from_sosi_polygon(geom, width: int, height: int) -> Affine:
+    """
+    Derives a synthetic affine transform (pixel → geo) from a SOSI image boundary polygon.
+    Used as a fallback when the raster has no embedded geotransform.
+
+    Assumes SOSI polygon corner order: [bottom-right, top-right, top-left, bottom-left],
+    consistent with build_transform_from_polygon in find_overlap.py.
+
+    :param geom: Shapely Polygon or MultiPolygon representing the image footprint.
+    :param width: image width in pixels.
+    :param height: image height in pixels.
+    :return: Affine transform mapping pixel (col, row) to geographic (x, y).
+    """
+    poly = geom.geoms[0] if isinstance(geom, MultiPolygon) else geom
+    coords = list(poly.exterior.coords)[:-1]
+    if len(coords) != 4:
+        raise ValueError("Image boundary polygon must have exactly 4 corners to derive affine.")
+
+    # SOSI corner order: [0]=BR, [1]=TR, [2]=TL, [3]=BL
+    tl = coords[2]  # → pixel (0, 0)
+    tr = coords[1]  # → pixel (width, 0)
+    bl = coords[3]  # → pixel (0, height)
+
+    a = (tr[0] - tl[0]) / width
+    b = (bl[0] - tl[0]) / height
+    c = tl[0]
+    d = (tr[1] - tl[1]) / width
+    e = (bl[1] - tl[1]) / height
+    f = tl[1]
+
+    return Affine(a, b, c, d, e, f)
+
+
 def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataFrame, img_name: str, ds: gdal.Dataset) -> np.ndarray:
     """
     Builds a water mask for the given image by aligning water contours from a GeoPackage
@@ -334,21 +374,22 @@ def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataF
     :param ds: GDAL dataset of the raster image.
     :return: Boolean mask array of shape (height, width), True where water is present.
     """
-
-    raster_crs = ds.GetProjection()
-    if not raster_crs:
-        raise RuntimeError("Raster has no CRS; can't align vectors.")
-
-    contour_gdf = contour_gdf.to_crs(raster_crs)
-    sosi_df = sosi_df.to_crs(raster_crs)
-
-    gt = ds.GetGeoTransform()
     width = ds.RasterXSize
     height = ds.RasterYSize
-    affine = Affine.from_gdal(*gt)
+
+    raster_crs = ds.GetProjection()
+    if raster_crs:
+        contour_gdf = contour_gdf.to_crs(raster_crs)
+        sosi_df = sosi_df.to_crs(raster_crs)
+        affine = Affine.from_gdal(*ds.GetGeoTransform())
+    else:
+        row = fo.find_image_row_img_name(sosi_df, img_name)
+        affine = _affine_from_sosi_polygon(row['geometry'], width, height)
+
     inv_affine = ~affine
 
-    row = fo.find_image_row_img_name(sosi_df, img_name)
+    if raster_crs:
+        row = fo.find_image_row_img_name(sosi_df, img_name)
     overlap = contour_gdf['geometry'].intersects(row['geometry'])
 
     sosi_corners_flat = [
@@ -454,6 +495,8 @@ def refine_mask_hsl(img_data: ndarray, polygon_mask: ndarray[tuple[int, int]], i
 
     return  refined_mask.astype(np.uint8)
 
+
+
 def find_disagreement_ratio(mask: ndarray[tuple[bool, bool]], other_mask: ndarray[tuple[bool, bool]]) -> float:
     """
     Finds the amount of disagreement between two binary masks. The stricter of the two masks should be in other_mask.
@@ -468,6 +511,29 @@ def find_disagreement_ratio(mask: ndarray[tuple[bool, bool]], other_mask: ndarra
     disagreement_count = np.sum(disagreement)
     return disagreement_count / mask.size
 
+
+
+def dissimilarity_confidence(x: float, k: float = 6.0) -> float:
+    """
+    Maps a dissimilarity score in [0, 1] to a confidence value in [0, 1].
+
+    - Returns 0.0 at x = 0 (identical masks)
+    - Returns 1.0 at x >= 0.3 (clearly different masks)
+    - Exponential ramp in between: slow start, fast finish
+
+    Args:
+        x: Dissimilarity score in [0, 1].
+        k: Steepness of the exponential curve. Higher = sharper transition.
+
+    Returns:
+        Confidence that the two images are different, in [0, 1].
+    """
+    if x >= 0.8:
+        return 1.0
+    return (np.exp(k * x) - 1) / (np.exp(k * 0.8) - 1)
+
+
+
 def crop_arrays_binary(array: ndarray, other_array: ndarray) -> tuple[ndarray, ndarray]:
     """
     Crop arrays based on np.nonzero. Expects a bool or binary array. Other array is cropped based on first array.
@@ -478,9 +544,12 @@ def crop_arrays_binary(array: ndarray, other_array: ndarray) -> tuple[ndarray, n
     :param other_array: the second array to crop so that it matches first array in size.
     :return: the two arrays as a tuple, with other_array last.
     """
-    rows, cols = np.nonzero(array)
-    r_min, r_max = rows.min(), rows.max() + 1
-    c_min, c_max = cols.min(), cols.max() + 1
+    rows_any = np.any(array, axis=1)
+    cols_any = np.any(array, axis=0)
+    r_min = int(rows_any.argmax())
+    r_max = int(len(rows_any) - rows_any[::-1].argmax())
+    c_min = int(cols_any.argmax())
+    c_max = int(len(cols_any) - cols_any[::-1].argmax())
     array = array[r_min:r_max, c_min:c_max]
     if other_array.ndim == 3:
         other_array = other_array[:, r_min:r_max, c_min:c_max]
