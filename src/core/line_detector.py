@@ -16,8 +16,8 @@ HIGHPASS_SIGMA = 80
 N_BANDS = 25
 
 # A column/row is a glare candidate when BOTH hold:
-CONSISTENCY_MIN = 0.90   # ≥ 90 % of bands agree in sign
-MAGNITUDE_MIN   = 0.10   # median per-band |z-score| ≥ 0.10
+CONSISTENCY_MIN = 0.90   # ≥% of bands agree in sign
+MAGNITUDE_MIN   = 0.10   # median per-band |z-score|
 
 # Peak-detection parameters
 PEAK_MIN_DISTANCE   = 15    # minimum px separation between two distinct peaks
@@ -45,31 +45,44 @@ def _load_gray_from_array(arr: NDArray, timer: Timer) -> NDArray[np.float32]:
     """
     with timer.measure("load_gray: array conversion"):
         if arr.ndim == 3:
-            raw = np.transpose(arr, (1, 2, 0))
-        else:
-            raw = arr
+            arr = np.transpose(arr, (1, 2, 0))
 
-        raw_u8 = cv2.normalize(raw, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-
+        raw_u8 = cv2.normalize(arr, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
         gray_u8 = cv2.cvtColor(raw_u8, cv2.COLOR_RGB2GRAY) if raw_u8.ndim == 3 else raw_u8
 
     with timer.measure("load_gray: normalize to float32"):
         return cv2.normalize(gray_u8, None, 0, 255, cv2.NORM_MINMAX).astype(np.float32)
 
 
-def _highpass(gray, sigma, axis, timer):
+def _highpass(gray: NDArray[np.float32], sigma: int, axis: str, timer: Timer,) -> NDArray[np.float32]:
+    """
+    Creates a highpass downsampled blur on the images to
+    Args:
+        gray: the normalised float32 greyscale image
+        sigma: the gaussian blur sigma
+        axis: the axis to blur
+        timer: timer for optimisation debugging
+
+    Returns:
+        the array of the greyscale and blured image
+    """
     with timer.measure(f"highpass: downsampled blur ({axis})"):
-        SCALE = 4
-        small = cv2.resize(gray, (gray.shape[1] // SCALE, gray.shape[0] // SCALE),
-                           interpolation=cv2.INTER_AREA)
+        SCALE   = 4
+        h, w    = gray.shape
         sigma_s = sigma / SCALE
         ksize   = int(6 * sigma_s) | 1
+
+        small  = cv2.resize(gray, (w // SCALE, h // SCALE),
+                            interpolation=cv2.INTER_AREA)
         if axis == 'col':
             blur_s = cv2.GaussianBlur(small, (ksize, 1), sigmaX=sigma_s, sigmaY=0)
         else:
             blur_s = cv2.GaussianBlur(small, (1, ksize), sigmaX=0, sigmaY=sigma_s)
-        blur = cv2.resize(blur_s, (gray.shape[1], gray.shape[0]),
-                          interpolation=cv2.INTER_LINEAR)
+        del small
+
+        blur = cv2.resize(blur_s, (w, h), interpolation=cv2.INTER_LINEAR)
+        del blur_s
+
         return gray - blur
 
 def _score_profile(
@@ -121,7 +134,7 @@ def _valley_boundary(
     i: int,
 ) -> tuple[int, int]:
     """
-    Find left/right bounds for peak i using the score-minimum (valley) between
+    Find left/right bounds for peak in using the score-minimum (valley) between
     adjacent peaks as the boundary. Not timed individually — called in a loop
     inside _detect_axis which is already timed.
 
@@ -257,21 +270,21 @@ def _detect_axis(
     return lines
 
 
-def _to_vis(raw: NDArray, timer: Timer) -> NDArray[np.uint8]:
-    """
-    Normalise raw image to uint8 BGR for visualisation.
-
-    Args:
-        raw:   raw image array (any dtype, any channel count)
-        timer: shared Timer instance
-
-    Returns:
-        BGR uint8 image ready for annotation.
-    """
-    with timer.measure("to_vis: normalize + cvtColor"):
-        vis = cv2.normalize(raw, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8) \
-              if raw.dtype != np.uint8 else raw.copy()
-        return cv2.cvtColor(vis, cv2.COLOR_GRAY2BGR) if vis.ndim == 2 else vis
+# def _to_vis(raw: NDArray, timer: Timer) -> NDArray[np.uint8]:
+#     """
+#     Normalise raw image to uint8 BGR for visualisation.
+#
+#     Args:
+#         raw:   raw image array (any dtype, any channel count)
+#         timer: shared Timer instance
+#
+#     Returns:
+#         BGR uint8 image ready for annotation.
+#     """
+#     with timer.measure("to_vis: normalize + cvtColor"):
+#         vis = cv2.normalize(raw, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8) \
+#               if raw.dtype != np.uint8 else raw.copy()
+#         return cv2.cvtColor(vis, cv2.COLOR_GRAY2BGR) if vis.ndim == 2 else vis
 
 
 def detect_glare(
@@ -306,8 +319,6 @@ def detect_glare(
 
     with timer.measure("Load: image gray from array"):
         gray = _load_gray_from_array(img_arr, timer)
-    h, w = gray.shape
-    print(f"  Size: {w}×{h}  |  σ={highpass_sigma}  bands={n_bands}")
 
     kw = dict(sigma=highpass_sigma, n_bands=n_bands,
               cons_min=consistency_min, mag_min=magnitude_min,
@@ -337,7 +348,7 @@ def detect_glare(
                   f"  centre={ln['centre']}  width={ln['width_px']}px"
                   f"  score={ln['peak_score']:.3f}")
 
-    timer.report(title=f"Timing report")
+    timer.report(title="Timing report")
     return all_lines
 
 
