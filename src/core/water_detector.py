@@ -363,7 +363,7 @@ def _affine_from_sosi_polygon(geom, width: int, height: int) -> Affine:
     return Affine(a, b, c, d, e, f)
 
 
-def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataFrame, img_name: str, ds: gdal.Dataset) -> np.ndarray:
+def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataFrame, img_name: str, ds: "gdal.Dataset | RasterMeta") -> np.ndarray:
     """
     Builds a water mask for the given image by aligning water contours from a GeoPackage
     to the raster extent, correcting for Y-axis flip in the SOSI boundary polygon.
@@ -371,17 +371,23 @@ def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataF
     :param sosi_df: the GeoDataFrame containing the image polygon.
     :param contour_gdf: the GeoDataFrame containing the contour polygons.
     :param img_name: Image name used to look up the corresponding SOSI boundary row.
-    :param ds: GDAL dataset of the raster image.
+    :param ds: GDAL dataset of the raster image, or a picklable ``RasterMeta`` snapshot.
     :return: Boolean mask array of shape (height, width), True where water is present.
     """
-    width = ds.RasterXSize
-    height = ds.RasterYSize
+    from entity.image.RasterMeta import RasterMeta
+    if isinstance(ds, RasterMeta):
+        width, height = ds.width, ds.height
+        raster_crs = ds.projection
+        _geotransform = ds.geotransform
+    else:
+        width, height = ds.RasterXSize, ds.RasterYSize
+        raster_crs = ds.GetProjection()
+        _geotransform = ds.GetGeoTransform()
 
-    raster_crs = ds.GetProjection()
     if raster_crs:
         contour_gdf = contour_gdf.to_crs(raster_crs)
         sosi_df = sosi_df.to_crs(raster_crs)
-        affine = Affine.from_gdal(*ds.GetGeoTransform())
+        affine = Affine.from_gdal(*_geotransform)
     else:
         row = fo.find_image_row_img_name(sosi_df, img_name)
         affine = _affine_from_sosi_polygon(row['geometry'], width, height)

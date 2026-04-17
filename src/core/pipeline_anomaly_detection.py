@@ -48,7 +48,7 @@ def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, wat
     """
     increment = 30
     t_0 = time.monotonic()
-    polygon_mask = wd.create_water_polygon_mask(water_gdf, sosig_df, image.img_id, image.dataset)
+    polygon_mask = wd.create_water_polygon_mask(water_gdf, sosig_df, image.img_id, image.metadata)
     print(f"  polygon_mask:   {(time.monotonic() - t_0):.2f}s")
     t = time.monotonic()
     hsl_mask = wd.create_water_mask_hsl(image.img_arr, increment, polygon_mask)
@@ -120,8 +120,8 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         if (not img1_path.exists() or not img2_path.exists()) or ( sosi_gdf.iloc[i]["stripenummer"] != sosi_gdf.iloc[i + 1]["stripenummer"]):
             continue
         image1: Image = Image.from_filename(sosi_gdf.iloc[i]["bildefilRGB"])
-        arr1, ds1, arr2, ds2, t_load = load_two_image_arrays(img1_path, img2_path)
-        image1.img_arr, image1.dataset = arr1, ds1
+        arr1, rm1, arr2, _, t_load = load_two_image_arrays(img1_path, img2_path)
+        image1.img_arr, image1.metadata = arr1, rm1
 
 
         print("------------------------------------------")
@@ -141,7 +141,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
 
         print("\n")
         image1.img_arr = None
-        image1.dataset = None
+        image1.metadata = None
         anomaly_sets.append(image1)
 
     print("Overall time:", time.perf_counter() - t0)
