@@ -5,8 +5,6 @@ import grpc
 
 from main import cli_run
 from services.anomaly_servicer.anomaly_servicer import AnomalyServiceServicer
-
-from skavl_proto import anomaly_pb2
 from skavl_proto import anomaly_pb2_grpc
 from utils import DbConnector
 
