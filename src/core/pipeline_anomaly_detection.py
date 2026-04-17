@@ -1,4 +1,8 @@
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import datetime
+from multiprocessing.shared_memory import SharedMemory
+
 from core.color_diff import check_difference_two_images
 from pathlib import Path
 import time
@@ -10,6 +14,65 @@ from core.line_artifact_detector import detect_glare
 from entity.image.Image import Image
 import core.artifact_detector as ad
 from utils.db_connector import DbConnector, AnalysisType
+
+@dataclass
+class _ShmSpec:
+    """Descriptor passed to workers instead of a numpy array — zero-copy via shared memory."""
+    name: str
+    shape: tuple
+    dtype: str
+
+    def attach(self) -> tuple[np.ndarray, SharedMemory]:
+        """Attach to the shared block and return a numpy view plus the handle to close later."""
+        shm = SharedMemory(name=self.name)
+        return np.ndarray(self.shape, dtype=self.dtype, buffer=shm.buf), shm
+
+
+def _make_shm(arr: np.ndarray) -> tuple[_ShmSpec, SharedMemory]:
+    """Copy arr into a new shared-memory block; returns the descriptor and the owner handle."""
+    shm = SharedMemory(create=True, size=arr.nbytes)
+    np.copyto(np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf), arr)
+    return _ShmSpec(shm.name, arr.shape, str(arr.dtype)), shm
+
+
+# ---------------------------------------------------------------------------
+# Per-analysis worker wrappers — module-level so pickle can find them
+# ---------------------------------------------------------------------------
+
+def _artifact_worker(image: Image, increment: int, spec: _ShmSpec):
+    arr, shm = spec.attach()
+    image.img_arr = arr
+    try:
+        start_artifact_detection_analysis(image, increment)
+    finally:
+        shm.close()
+
+
+def _water_worker(image: Image, sosig_df: gpd.GeoDataFrame, water_gdf: gpd.GeoDataFrame, spec: _ShmSpec):
+    arr, shm = spec.attach()
+    image.img_arr = arr
+    try:
+        start_water_detection_analysis(image, sosig_df, water_gdf)
+    finally:
+        shm.close()
+
+
+def _color_worker(gdf: gpd.GeoDataFrame, i: int, spec1: _ShmSpec, spec2: _ShmSpec, image_id: str):
+    arr1, shm1 = spec1.attach()
+    arr2, shm2 = spec2.attach()
+    try:
+        start_color_difference_analysis(gdf, i, arr1, arr2, image_id)
+    finally:
+        shm1.close()
+        shm2.close()
+
+
+def _glare_worker(spec: _ShmSpec, img_path: Path):
+    arr, shm = spec.attach()
+    try:
+        start_glare_detection_analysis(arr, img_path)
+    finally:
+        shm.close()
 
 
 def start_glare_detection_analysis(arr: np.ndarray, img_path: Path):
@@ -67,7 +130,7 @@ def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, wat
     print(f"Time analysis: {t_1 - t_0:.6f}s\n")
 
 
-def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndarray, arr2: np.ndarray, image: Image):
+def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndarray, arr2: np.ndarray, image_id: str):
     """
     Start colour difference analysis
 
@@ -88,7 +151,7 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
         arr2,
     )
     db = DbConnector()
-    db.add_analysis(image.img_id, AnalysisType.COLOR_AVERAGE, confidence_level)
+    db.add_analysis(image_id, AnalysisType.COLOR_AVERAGE, confidence_level)
 
     print("----------- Color Difference -------------")
     print(f"Comparing image {gdf.iloc[i]['bildenummer']} and image {gdf.iloc[i + 1]['bildenummer']}")
@@ -110,39 +173,54 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
     image_count = len(sosi_gdf)
 
     t0 = time.perf_counter()
-
+    db = DbConnector()
     anomaly_sets = []
-    for i in range(image_count - 1):
+    with ProcessPoolExecutor() as executor:
+        for i in range(image_count - 1):
+            t_0 = time.monotonic()
+            img1_path = image_folder_path / sosi_gdf.iloc[i]["bildefilRGB"]
+            img2_path = image_folder_path / sosi_gdf.iloc[i + 1]["bildefilRGB"]
 
-        img1_path = image_folder_path / sosi_gdf.iloc[i]["bildefilRGB"]
-        img2_path = image_folder_path / sosi_gdf.iloc[i + 1]["bildefilRGB"]
+            if (not img1_path.exists() or not img2_path.exists()) or (sosi_gdf.iloc[i]["stripenummer"] != sosi_gdf.iloc[i + 1]["stripenummer"]):
+                continue
+            image1: Image = Image.from_filename(sosi_gdf.iloc[i]["bildefilRGB"])
+            arr1, rm1, arr2, _, t_load = load_two_image_arrays(img1_path, img2_path)
+            image1.metadata = rm1  # img_arr intentionally left None — workers get it via shared memory
 
-        if (not img1_path.exists() or not img2_path.exists()) or ( sosi_gdf.iloc[i]["stripenummer"] != sosi_gdf.iloc[i + 1]["stripenummer"]):
-            continue
-        image1: Image = Image.from_filename(sosi_gdf.iloc[i]["bildefilRGB"])
-        arr1, rm1, arr2, _, t_load = load_two_image_arrays(img1_path, img2_path)
-        image1.img_arr, image1.metadata = arr1, rm1
+            print("------------------------------------------")
+            print(f"Comparing image {sosi_gdf.iloc[i]['bildenummer']} and image {sosi_gdf.iloc[i + 1]['bildenummer']}")
+            print(f"Loading images to arr : {t_load:.6f}s \n")
 
+            spec1, shm1 = _make_shm(arr1)
+            spec2, shm2 = _make_shm(arr2)
+            try:
+                futures = {
+                    executor.submit(_artifact_worker, image1, 50, spec1): "artifact",
+                    executor.submit(_color_worker, sosi_gdf, i, spec1, spec2, image1.img_id): "color",
+                    executor.submit(_glare_worker, spec1, img1_path): "glare",
+                }
+                if water_gdf is not None:
+                    futures[executor.submit(_water_worker, image1, sosi_gdf, water_gdf, spec1)] = "water"
 
-        print("------------------------------------------")
-        print(f"Comparing image {sosi_gdf.iloc[i]['bildenummer']} and image {sosi_gdf.iloc[i + 1]['bildenummer']}")
-        print(f"Loading images to arr : {t_load:.6f}s \n")
+                for future in as_completed(futures):
+                    name = futures[future]
+                    try:
+                        future.result()
+                    except Exception as e:
+                        print(f"Analysis '{name}' failed: {e}")
+            finally:
+                shm1.close()
+                shm1.unlink()
+                shm2.close()
+                shm2.unlink()
 
-        if water_gdf is not None:
-            start_water_detection_analysis(image1, sosi_gdf, water_gdf)
+            image1.max_confidence = db.get_max_confidence_img(image1.img_id)
+            print(f"Max confidence level for image {image1.img_id}: {image1.max_confidence}")
 
-        start_artifact_detection_analysis(image1, 50)
-        start_color_difference_analysis(sosi_gdf, i, arr1, arr2, image1)
-        start_glare_detection_analysis(arr1, img1_path)
-
-        db = DbConnector()
-        image1.max_confidence = db.get_max_confidence_img(image1.img_id)
-        print(f"Max confidence level for image {image1.img_id}: {image1.max_confidence}")
-
-        print("\n")
-        image1.img_arr = None
-        image1.metadata = None
-        anomaly_sets.append(image1)
+            print("\n")
+            anomaly_sets.append(image1)
+            t_1 = time.monotonic()
+            print(f"Total time for analyses on image {image1.img_id}: {(t_1 - t_0):.2f}s")
 
     print("Overall time:", time.perf_counter() - t0)
     print(f"Found {image_count} images in the GeoPackage.")

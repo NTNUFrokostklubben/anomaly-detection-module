@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from osgeo import gdal
+if TYPE_CHECKING:
+    from osgeo import gdal
 
 
 @dataclass
@@ -49,6 +50,7 @@ class BandMeta:
                 The band is only read here; the returned object holds no reference
                 to it and is safe to pickle.
                 """
+        from osgeo import gdal as _gdal
         block_w, block_h = band.GetBlockSize()
         no_data = band.GetNoDataValue()
         scale = band.GetScale()
@@ -56,9 +58,9 @@ class BandMeta:
         return BandMeta(
             index=index,
             data_type=band.DataType,
-            data_type_name=gdal.GetDataTypeName(band.DataType),
+            data_type_name=_gdal.GetDataTypeName(band.DataType),
             color_interp=band.GetColorInterpretation(),
-            color_interp_name=gdal.GetColorInterpretationName(band.GetColorInterpretation()),
+            color_interp_name=_gdal.GetColorInterpretationName(band.GetColorInterpretation()),
             description=band.GetDescription() or "",
             no_data_value=float(no_data) if no_data is not None else None,
             scale=float(scale) if scale is not None else None,
@@ -139,7 +141,7 @@ class RasterMeta:
         return self.geotransform[4]
 
     # ------------------------------------------------------------------
-    # Factory
+    # Factories
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -165,5 +167,50 @@ class RasterMeta:
             geotransform=tuple(ds.GetGeoTransform()),
             metadata=dict(ds.GetMetadata() or {}),
             image_structure=dict(ds.GetMetadata("IMAGE_STRUCTURE") or {}),
+            bands=bands,
+        )
+
+    @staticmethod
+    def from_rasterio(ds) -> "RasterMeta":
+        """
+        Build a ``RasterMeta`` from an open ``rasterio.DatasetReader``.
+
+        ``ds.transform`` is an ``affine.Affine`` object; ``.to_gdal()`` converts
+        it to the standard GDAL 6-tuple so the rest of the codebase keeps working
+        without change.
+        """
+        color_interps = ds.colorinterp if hasattr(ds, "colorinterp") else []
+        block_shapes = ds.block_shapes or []
+
+        bands = []
+        for i in range(1, ds.count + 1):
+            ci = color_interps[i - 1] if color_interps else None
+            bs = block_shapes[i - 1] if block_shapes else (256, 256)
+            bands.append(BandMeta(
+                index=i,
+                data_type=0,
+                data_type_name=ds.dtypes[i - 1],
+                color_interp=ci.value if ci is not None else 0,
+                color_interp_name=ci.name if ci is not None else "",
+                description=ds.descriptions[i - 1] or "",
+                no_data_value=float(ds.nodata) if ds.nodata is not None else None,
+                scale=ds.scales[i - 1] if hasattr(ds, "scales") and ds.scales else None,
+                offset=ds.offsets[i - 1] if hasattr(ds, "offsets") and ds.offsets else None,
+                unit_type=(ds.units[i - 1] if hasattr(ds, "units") and ds.units else "") or "",
+                block_width=bs[1],
+                block_height=bs[0],
+                metadata=dict(ds.tags(i) or {}),
+            ))
+
+        return RasterMeta(
+            driver_short=ds.driver,
+            driver_long=ds.driver,
+            width=ds.width,
+            height=ds.height,
+            band_count=ds.count,
+            projection=ds.crs.wkt if ds.crs else "",
+            geotransform=tuple(ds.transform.to_gdal()),
+            metadata=dict(ds.tags() or {}),
+            image_structure=dict(ds.tags(ns="IMAGE_STRUCTURE") or {}),
             bands=bands,
         )

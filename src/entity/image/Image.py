@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 import numpy as np
-from osgeo.gdal import Dataset
+
+if TYPE_CHECKING:
+    from osgeo.gdal import Dataset
 
 import entity.image.Artifact as Art
 from entity.enums.analysis_t import AnalysisType

@@ -1,7 +1,8 @@
 
 import numpy as np
+import rasterio
 from pathlib import Path
-from utils.io_tools import read_tiff_fast, load_tiff_dataset
+from utils.io_tools import read_tiff_fast
 from entity.image.RasterMeta import RasterMeta
 
 class ImageCache:
@@ -38,8 +39,8 @@ class ImageCache:
             Array of the image.
         """
         img_path = img_path.resolve()
-        ds = load_tiff_dataset(img_path)
-        rm = RasterMeta.from_dataset(ds)
+        with rasterio.open(img_path) as ds:
+            rm = RasterMeta.from_rasterio(ds)
         # When img_path is in the cache
         img_path = str(img_path) + "_" + str(level)
         if img_path in self._cache:
