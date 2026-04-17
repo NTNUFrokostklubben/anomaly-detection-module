@@ -15,7 +15,7 @@ from affine import Affine
 from rasterio.features import geometry_mask
 from shapely import Polygon, MultiPolygon
 
-
+from entity.image import RasterMeta
 
 # RGB normalisation
 RGB_MAX: float = 255.0
@@ -363,7 +363,7 @@ def _affine_from_sosi_polygon(geom, width: int, height: int) -> Affine:
     return Affine(a, b, c, d, e, f)
 
 
-def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataFrame, img_name: str, ds: "gdal.Dataset | RasterMeta") -> np.ndarray:
+def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataFrame, img_name: str, ds: RasterMeta | any) -> np.ndarray:
     """
     Builds a water mask for the given image by aligning water contours from a GeoPackage
     to the raster extent, correcting for Y-axis flip in the SOSI boundary polygon.
@@ -374,15 +374,11 @@ def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataF
     :param ds: GDAL dataset of the raster image, or a picklable ``RasterMeta`` snapshot.
     :return: Boolean mask array of shape (height, width), True where water is present.
     """
-    from entity.image.RasterMeta import RasterMeta
-    if isinstance(ds, RasterMeta):
-        width, height = ds.width, ds.height
-        raster_crs = ds.projection
-        _geotransform = ds.geotransform
-    else:
-        width, height = ds.RasterXSize, ds.RasterYSize
-        raster_crs = ds.GetProjection()
-        _geotransform = ds.GetGeoTransform()
+
+    width, height = ds.width, ds.height
+    raster_crs = ds.projection
+    _geotransform = ds.geotransform
+
 
     if raster_crs:
         contour_gdf = contour_gdf.to_crs(raster_crs)
