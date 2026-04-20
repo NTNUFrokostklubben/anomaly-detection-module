@@ -7,7 +7,6 @@ import cv2
 from numba import njit, prange, cuda
 import numpy as np
 from numpy import ndarray
-#from osgeo import gdal
 from skimage import morphology
 from scipy import ndimage
 from shapely.ops import unary_union
