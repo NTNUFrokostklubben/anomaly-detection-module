@@ -377,13 +377,11 @@ def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataF
 
     width, height = ds.width, ds.height
     raster_crs = ds.projection
-    _geotransform = ds.geotransform
-
 
     if raster_crs:
         contour_gdf = contour_gdf.to_crs(raster_crs)
         sosi_df = sosi_df.to_crs(raster_crs)
-        affine = Affine.from_gdal(*_geotransform)
+        affine = Affine.from_gdal(*ds.geotransform)
     else:
         row = fo.find_image_row_img_name(sosi_df, img_name)
         affine = _affine_from_sosi_polygon(row['geometry'], width, height)
