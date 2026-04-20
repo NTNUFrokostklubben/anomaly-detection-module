@@ -2,12 +2,9 @@ from concurrent import futures
 import time
 
 import grpc
-from osgeo import gdal
 
 from main import cli_run
 from services.anomaly_servicer.anomaly_servicer import AnomalyServiceServicer
-
-from skavl_proto import anomaly_pb2
 from skavl_proto import anomaly_pb2_grpc
 from utils import DbConnector
 
@@ -44,7 +41,6 @@ def serve(args):
     server_port = getattr(args, "port", None) or 50052
     db = DbConnector()
     db.init()
-    gdal.UseExceptions()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
     anomaly_pb2_grpc.add_AnomalyDetectorServiceServicer_to_server(AnomalyServiceServicer(), server)
     server.add_insecure_port(f"0.0.0.0:{server_port}")

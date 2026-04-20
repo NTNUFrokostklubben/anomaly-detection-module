@@ -3,6 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.signal import find_peaks
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 from utils.timer import Timer
 
 # Gaussian σ (pixels) for scene-brightness blur along one axis.
@@ -106,16 +107,14 @@ def _score_profile(
     with timer.measure("score_profile: band means + stds"):
         if axis == 'col':
             band_len = img_h // n_bands
-            band_means = np.stack([np.mean(residual[i * band_len:(i + 1) * band_len, :], axis=0)
-                                   for i in range(n_bands)])
-            band_stds = np.array([np.std(residual[i * band_len:(i + 1) * band_len, :]) + 1e-5
-                                  for i in range(n_bands)])
+            bands = residual[:n_bands * band_len, :].reshape(n_bands, band_len, img_w)
+            band_means = bands.mean(axis=1)
+            band_stds = bands.std(axis=(1, 2)) + 1e-5
         else:
             band_len = img_w // n_bands
-            band_means = np.stack([np.mean(residual[:, i * band_len:(i + 1) * band_len], axis=1)
-                                   for i in range(n_bands)])
-            band_stds = np.array([np.std(residual[:, i * band_len:(i + 1) * band_len]) + 1e-5
-                                  for i in range(n_bands)])
+            bands = residual[:, :n_bands * band_len].reshape(img_h, n_bands, band_len).transpose(1, 0, 2)
+            band_means = bands.mean(axis=2)
+            band_stds = bands.std(axis=(1, 2)) + 1e-5
 
     with timer.measure("score_profile: z-score + consistency + magnitude"):
         z = band_means / band_stds[:, np.newaxis]
@@ -309,13 +308,14 @@ def detect_glare(
 
     print("Analysing image: ", img_path)
 
-    print("  Scanning vertical glare …")
-    v_lines = _detect_axis(gray, 'col', **kw)
-    print(f"    → {len(v_lines)} line(s)")
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f_v = ex.submit(_detect_axis, gray, 'col', **kw)
+        f_h = ex.submit(_detect_axis, gray, 'row', **kw)
+        v_lines = f_v.result()
+        h_lines = f_h.result()
 
-    print("  Scanning horizontal glare …")
-    h_lines = _detect_axis(gray, 'row', **kw)
-    print(f"    → {len(h_lines)} line(s)")
+    print(f"  Scanning vertical glare   → {len(v_lines)} line(s)")
+    print(f"  Scanning horizontal glare → {len(h_lines)} line(s)")
 
     all_lines = v_lines + h_lines
 
@@ -332,5 +332,5 @@ def detect_glare(
                   f"  centre={ln['centre']}  width={ln['width_px']}px"
                   f"  score={ln['peak_score']:.3f}")
 
-    # timer.report(title="Timing report")
+    #timer.report(title="Timing report")
     return all_lines

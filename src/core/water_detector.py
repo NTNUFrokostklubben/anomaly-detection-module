@@ -7,7 +7,6 @@ import cv2
 from numba import njit, prange, cuda
 import numpy as np
 from numpy import ndarray
-from osgeo import gdal
 from skimage import morphology
 from scipy import ndimage
 from shapely.ops import unary_union
@@ -15,7 +14,7 @@ from affine import Affine
 from rasterio.features import geometry_mask
 from shapely import Polygon, MultiPolygon
 
-
+from entity.image import RasterMeta
 
 # RGB normalisation
 RGB_MAX: float = 255.0
@@ -363,7 +362,7 @@ def _affine_from_sosi_polygon(geom, width: int, height: int) -> Affine:
     return Affine(a, b, c, d, e, f)
 
 
-def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataFrame, img_name: str, ds: gdal.Dataset) -> np.ndarray:
+def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataFrame, img_name: str, ds: RasterMeta | Any) -> np.ndarray:
     """
     Builds a water mask for the given image by aligning water contours from a GeoPackage
     to the raster extent, correcting for Y-axis flip in the SOSI boundary polygon.
@@ -371,17 +370,17 @@ def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataF
     :param sosi_df: the GeoDataFrame containing the image polygon.
     :param contour_gdf: the GeoDataFrame containing the contour polygons.
     :param img_name: Image name used to look up the corresponding SOSI boundary row.
-    :param ds: GDAL dataset of the raster image.
+    :param ds: GDAL dataset of the raster image, or a picklable ``RasterMeta`` snapshot.
     :return: Boolean mask array of shape (height, width), True where water is present.
     """
-    width = ds.RasterXSize
-    height = ds.RasterYSize
 
-    raster_crs = ds.GetProjection()
+    width, height = ds.width, ds.height
+    raster_crs = ds.projection
+
     if raster_crs:
         contour_gdf = contour_gdf.to_crs(raster_crs)
         sosi_df = sosi_df.to_crs(raster_crs)
-        affine = Affine.from_gdal(*ds.GetGeoTransform())
+        affine = Affine.from_gdal(*ds.geotransform)
     else:
         row = fo.find_image_row_img_name(sosi_df, img_name)
         affine = _affine_from_sosi_polygon(row['geometry'], width, height)
