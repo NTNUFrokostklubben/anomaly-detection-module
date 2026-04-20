@@ -100,13 +100,14 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
     print(f"Time analysis: {t:.6f}s\n")
 
 
-def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, *, water_gdf: gpd.GeoDataFrame = None):
+def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, *, water_gdf: gpd.GeoDataFrame = None, on_image_complete=None):
     """
     Start anomaly analysis
     Args:
         sosi_gdf: The geodataframe to analyse
         image_folder_path (Path): The folder path of the images to analyse
         water_gdf: The water contour GeoDataFrame for water masking.
+        on_image_complete: Callback function for when image is done analyzing
     """
     image_count = len(sosi_gdf)
 
@@ -152,6 +153,8 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
             image1.img_arr = None
             image1.metadata = None
             anomaly_sets.append(image1)
+            if on_image_complete:
+                on_image_complete()
             t_1 = time.monotonic()
             print(f"Total time for analyses on image {image1.img_id}: {(t_1 - t_0):.2f}s")
 
