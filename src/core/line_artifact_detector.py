@@ -314,23 +314,23 @@ def detect_glare(
         v_lines = f_v.result()
         h_lines = f_h.result()
 
-    """print(f"  Scanning vertical glare   → {len(v_lines)} line(s)")
-    print(f"  Scanning horizontal glare → {len(h_lines)} line(s)")"""
+    # print(f"  Scanning vertical glare   → {len(v_lines)} line(s)")
+    # print(f"  Scanning horizontal glare → {len(h_lines)} line(s)")
 
     all_lines = v_lines + h_lines
 
     # Report
-    """print(f"\n  {'─' * 50}")
-    print(f"  Total glare lines detected: {len(all_lines)}")
-    for i, ln in enumerate(all_lines):
-        if ln['type'] == 'vertical':
-            print(f"    [{i + 1}] VERTICAL    cols {ln['start_col']}–{ln['end_col']}"
-                  f"  centre={ln['centre']}  width={ln['width_px']}px"
-                  f"  score={ln['peak_score']:.3f}")
-        else:
-            print(f"    [{i + 1}] HORIZONTAL  rows {ln['start_row']}–{ln['end_row']}"
-                  f"  centre={ln['centre']}  width={ln['width_px']}px"
-                  f"  score={ln['peak_score']:.3f}")"""
+    # print(f"\n  {'─' * 50}")
+    # print(f"  Total glare lines detected: {len(all_lines)}")
+    # for i, ln in enumerate(all_lines):
+    #     if ln['type'] == 'vertical':
+    #         print(f"    [{i + 1}] VERTICAL    cols {ln['start_col']}–{ln['end_col']}"
+    #               f"  centre={ln['centre']}  width={ln['width_px']}px"
+    #               f"  score={ln['peak_score']:.3f}")
+    #     else:
+    #         print(f"    [{i + 1}] HORIZONTAL  rows {ln['start_row']}–{ln['end_row']}"
+    #               f"  centre={ln['centre']}  width={ln['width_px']}px"
+    #               f"  score={ln['peak_score']:.3f}")
 
     #timer.report(title="Timing report")
     return all_lines

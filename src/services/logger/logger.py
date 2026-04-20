@@ -5,6 +5,13 @@ from queue import Queue
 
 
 def _make_file_handler(filename: str, log_dir: Path, fmt: logging.Formatter) -> logging.handlers.RotatingFileHandler:
+    """
+    Makes file handlers
+    :param filename: The name of the log file to write to, will be created in log_dir
+    :param log_dir: the directory for logs, default is project_root/logs
+    :param fmt: the format of the logs, default is logging.Formatter
+    :return: A file handler for the given filename and format, with a max size of 10MB and 3 backup files.
+    """
     fh = logging.handlers.RotatingFileHandler(log_dir / filename, maxBytes=10_000_000, backupCount=3)
     fh.setFormatter(fmt)
     return fh

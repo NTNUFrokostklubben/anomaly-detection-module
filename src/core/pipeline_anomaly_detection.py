@@ -1,6 +1,5 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
 from core.color_diff import check_difference_two_images
 from pathlib import Path
 import time
@@ -26,8 +25,11 @@ def start_glare_detection_analysis(arr: np.ndarray, img_path: Path, log: bool):
     """
     try:
         #print("----------- Glare Detection -------------")
+        db = DbConnector()
         t_0 = time.monotonic()
         glare = detect_glare(arr, img_path)
+        # Add results to DB when confidence algorithm is finished
+        #db.add_analysis(img_path.name, AnalysisType.ARTIFACT_LINE,confidence_result)
         if log:
             for ln in glare:
                 logger.info("glare line found:  %s  centre=%s  width=%spx  score=%s",ln['type'],ln['centre'], ln['width_px'], ln['peak_score'],
@@ -42,6 +44,12 @@ def start_glare_detection_analysis(arr: np.ndarray, img_path: Path, log: bool):
 
 
 def start_artifact_detection_analysis(image, increment, log: bool):
+    """
+    Start artifact detection analysis on a single image, using the line artifact data from the database to compare against.
+    :param image: the image to analyse, must contain img_arr and img_id
+    :param increment: the size of the block of pixels to compare.
+    :param log: whether to log or not
+    """
 
     try:
         before = time.monotonic()
@@ -66,7 +74,12 @@ def start_artifact_detection_analysis(image, increment, log: bool):
 
 def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, water_gdf: gpd.GeoDataFrame,  log: bool):
     """
-    Start water detection analysis
+        Start water detection analysis on a single image, by comparing a polygon mask based on the water contours
+     to a mask created from the image itself using HSL values.
+    :param image:  The image to create a water mask on.
+    :param sosig_df:  the sosi GeoDataFrame with polygon and metadata information for the image.
+    :param water_gdf:  the water polygon GeoDataFrame to create the polygon mask from.
+    :param log:  bool for whether to log or not.
     """
     try:
 
@@ -161,8 +174,8 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
                 arr1, rm1, arr2, _, t_load = load_two_image_arrays(img1_path, img2_path)
                 image1.img_arr, image1.metadata = arr1, rm1
 
-                """print("------------------------------------------")
-                print(f"Comparing image {sosi_gdf.iloc[i]['bildenummer']} and image {sosi_gdf.iloc[i + 1]['bildenummer']}")"""
+                # print("------------------------------------------")
+                # print(f"Comparing image {sosi_gdf.iloc[i]['bildenummer']} and image {sosi_gdf.iloc[i + 1]['bildenummer']}")
                 #print(f"Loading images to arr : {t_load:.6f}s \n")
 
                 futures = {
