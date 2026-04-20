@@ -363,7 +363,7 @@ def _affine_from_sosi_polygon(geom, width: int, height: int) -> Affine:
     return Affine(a, b, c, d, e, f)
 
 
-def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataFrame, img_name: str, ds: RasterMeta | any) -> np.ndarray:
+def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataFrame, img_name: str, ds: RasterMeta | Any) -> np.ndarray:
     """
     Builds a water mask for the given image by aligning water contours from a GeoPackage
     to the raster extent, correcting for Y-axis flip in the SOSI boundary polygon.
