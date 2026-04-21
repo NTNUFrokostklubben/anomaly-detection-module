@@ -3,6 +3,8 @@ import logging.handlers
 from pathlib import Path
 from queue import Queue
 
+from services.config_parser.ConfigHandler import Config
+
 
 def _make_file_handler(filename: str, log_dir: Path, fmt: logging.Formatter) -> logging.handlers.RotatingFileHandler:
     """
@@ -12,7 +14,10 @@ def _make_file_handler(filename: str, log_dir: Path, fmt: logging.Formatter) -> 
     :param fmt: the format of the logs, default is logging.Formatter
     :return: A file handler for the given filename and format, with a max size of 10MB and 3 backup files.
     """
-    fh = logging.handlers.RotatingFileHandler(log_dir / filename, maxBytes=10_000_000, backupCount=3)
+    config = Config()
+    max_bytes = int(config.get("logger", "max_bytes_per_log_file"))
+    file_rotation = int(config.get("logger", "num_file_rotation"))
+    fh = logging.handlers.RotatingFileHandler(log_dir / filename, maxBytes=max_bytes, backupCount=file_rotation)
     fh.setFormatter(fmt)
     return fh
 

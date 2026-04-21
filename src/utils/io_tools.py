@@ -3,6 +3,7 @@ import geopandas as gpd
 import numpy as np
 import tifffile as tf
 
+from services.config_parser.ConfigHandler import Config
 from services.sosi_converter_service import convert_sosi_to_gpkg
 
 
@@ -43,16 +44,17 @@ def read_tiff_fast(path, *, series: int = None, level: int = None) -> np.ndarray
     :param path: path to the tiff image.
     :return: the image as array in shape(bands, H, W).
     """
-
+    config = Config()
+    max_workers = int(config.get("io_tools", "max_workers"))
     if series is not None:
         if level is not None:
-            img = tf.imread(path, maxworkers=8, series=series, level=level)
+            img = tf.imread(path, maxworkers=max_workers, series=series, level=level)
         else:
-            img = tf.imread(path, maxworkers=8, series=series)
+            img = tf.imread(path, maxworkers=max_workers, series=series)
     elif level is not None:
-        img = tf.imread(path, maxworkers=8, level=level)
+        img = tf.imread(path, maxworkers=max_workers, level=level)
     else:
-        img = tf.imread(path, maxworkers=8)
+        img = tf.imread(path, maxworkers=max_workers)
 
     return np.transpose(img[:, :, :3], (2, 0, 1))
 
