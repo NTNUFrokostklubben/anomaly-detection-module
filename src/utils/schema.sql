@@ -28,16 +28,16 @@ CREATE TABLE IF NOT EXISTS artifact_candidates(
     PRIMARY KEY  (coord_y, coord_x, img_id)
 );
 CREATE TABLE IF NOT EXISTS projects (
-    project_name TEXT PRIMARY KEY NOT NULL,
-    sosi_path TEXT,
-    image_folder_path TEXT,
-    last_processed_image_index INTEGER DEFAULT 0,
-    sosi_water_path TEXT
+    project_name TEXT PRIMARY KEY NOT NULL,         --Project name from SKAVL
+    sosi_path TEXT,                                 --Path to the sosi file for the project
+    image_folder_path TEXT,                         --Path to the folder containing the images for the project
+    last_processed_image_index INTEGER DEFAULT 0,   --Index of the last processed image in the project, used for resuming processing
+    sosi_water_path TEXT                            --Path to the sosi file for water areas in the project
 );
 
 CREATE TABLE IF NOT EXISTS analysis_data(
     img_id          TEXT NOT NULL,  --full name of the image e.g. HX-14365_073_001_14822.tif
-    analysis_type   TEXT CHECK( analysis_type in('color_avg', 'water_mask', 'artifact')) NOT NULL, --type of analysis
+    analysis_type   TEXT NOT NULL, --type of analysis
     confidence      REAL NOT NULL,       -- the level of confidence of the analysis
     FOREIGN KEY (img_id) references images(img_id) ON DELETE CASCADE,
     PRIMARY KEY (img_id, analysis_type)
