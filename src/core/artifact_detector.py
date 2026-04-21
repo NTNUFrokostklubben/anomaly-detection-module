@@ -51,7 +51,7 @@ def detect_artifact_consistency(images: list[image.Image], increment: int) -> fl
     """
 
     conn = db.DbConnector()
-    line_values = conn.get_artifact_data_line(images[0].prefix, images[0].line)
+    line_values = conn.get_artifact_data_line(images[0].prefix, images[0].line, str(images[0].img_arr.shape))
     if line_values is None and len(images) < 2:
         return None
     for img in images:

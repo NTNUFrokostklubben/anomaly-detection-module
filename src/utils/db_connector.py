@@ -285,10 +285,11 @@ class DbConnector:
             return None
 
 
-    def get_artifact_data_line(self, prefix: str, line: int) -> list[np.ndarray] | None:
+    def get_artifact_data_line(self, prefix: str, line: int, shape: str) -> list[np.ndarray] | None:
 
         """
         Get the computed artifact data for a line from the database.
+        :param shape: the shape of the data, ensures data of different resolution don't get compared.
         :param prefix: the prefix of the artifact data.
         :param line:   the line of the artifact data to get.
         :return: the computed artifact data for the line from the database or None
@@ -302,7 +303,8 @@ class DbConnector:
                                                    FROM images
                                                    WHERE line = ?
                                                      AND prefix = ?)
-                                  """, (line, prefix,))
+                                      AND shape = ?
+                                  """, (line, prefix, shape, ))
             self.commit()
             return [np.frombuffer(r[2], dtype=r[0]).reshape(eval(r[1])) for r in rows]
         except sql.DatabaseError as e:
