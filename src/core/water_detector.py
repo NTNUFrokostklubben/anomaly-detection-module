@@ -15,6 +15,7 @@ from rasterio.features import geometry_mask
 from shapely import Polygon, MultiPolygon
 
 from entity.image import RasterMeta
+from services.config_parser.ConfigHandler import Config
 
 # RGB normalisation
 RGB_MAX: float = 255.0
@@ -24,19 +25,6 @@ HUE_SECTOR_DEGREES: float = 60.0
 HUE_GREEN_OFFSET: float = 120.0
 HUE_BLUE_OFFSET: float = 240.0
 HUE_FULL_CIRCLE: float = 360.0
-
-# Water detection hue range (blue-cyan band)
-WATER_HUE_MIN: float = 170.0
-WATER_HUE_MAX: float = 290.0
-WATER_CHROMA_MIN: float = 6.0
-
-# CUDA kernel thread block size (per axis)
-CUDA_THREADS_PER_BLOCK: int = 16
-
-# Mask cleaning thresholds (pixels)
-CLEAN_MASK_MAX_SPLOTCH_SIZE: int = 1_000_000
-# The minimum size for a hole to survive clean up. Less than this is not relevant.
-MIN_HOLE_SIZE: int = 300_000
 
 
 
@@ -177,6 +165,11 @@ def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int
     """
     y_shape = data.shape[1]
     x_shape = data.shape[2]
+    config = Config()
+    WATER_HUE_MIN = float(config.get("water_detector", "water_hue_min"))
+    WATER_HUE_MAX = float(config.get("water_detector", "water_hue_max"))
+    WATER_CHROMA_MIN = float(config.get("water_detector", "water_chroma_min"))
+
     if constraint_region is None:
         constraint_region = np.ones((data.shape[1], data.shape[2]), dtype=np.bool_)
 
@@ -212,7 +205,7 @@ def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int
 
 
 @cuda.jit
-def _hsl_compute_blocks_kernel(data: np.ndarray[tuple[int, int, int]], mask: np.ndarray[tuple[bool, bool]], increment: int):
+def _hsl_compute_blocks_kernel(data: np.ndarray[tuple[int, int, int]], mask: np.ndarray[tuple[bool, bool]], increment: int, hue_min: int, hue_max: int) -> None:
     """
     Helper function for computing the blocks in the jumping block algorithm for CUDA processing of the water mask.
 
@@ -264,7 +257,7 @@ def _hsl_compute_blocks_kernel(data: np.ndarray[tuple[int, int, int]], mask: np.
         else:
             h = HUE_SECTOR_DEGREES * ((r_mean - g_mean) / delta) + HUE_BLUE_OFFSET
 
-    if WATER_HUE_MIN < h < WATER_HUE_MAX:
+    if hue_min < h < hue_max:
         for y in range(y_start, y_end):
             for x in range(x_start, x_end):
                 mask[y, x] = True
@@ -285,15 +278,18 @@ def create_water_mask_hsl_cuda(data: ndarray[tuple[int, int, int]], increment: i
 
     data_gpu = cuda.to_device(data)
     mask_gpu = cuda.to_device(np.zeros((y_shape, x_shape), dtype=np.bool_))
-
+    config = Config()
+    CUDA_THREADS_PER_BLOCK = int(config.get("water_detector","cuda_threads_per_block" ))
+    hue_min = int(config.get("water_detector","water_hue_min"))
+    hue_max = int(config.get("water_detector","water_hue_max"))
     threads_2d = (CUDA_THREADS_PER_BLOCK, CUDA_THREADS_PER_BLOCK)
     blocks_2d = (math.ceil(x_blocks / CUDA_THREADS_PER_BLOCK), math.ceil(y_blocks / CUDA_THREADS_PER_BLOCK))
-    _hsl_compute_blocks_kernel[blocks_2d, threads_2d](data_gpu, mask_gpu, increment)
+    _hsl_compute_blocks_kernel[blocks_2d, threads_2d](data_gpu, mask_gpu, increment, hue_min, hue_max)
 
     return mask_gpu.copy_to_host()
 
 
-def clean_water_mask(mask_array: ndarray[tuple[int, int]], max_size=CLEAN_MASK_MAX_SPLOTCH_SIZE) -> ndarray[tuple[int, int]]:
+def clean_water_mask(mask_array: ndarray[tuple[int, int]], max_size:int) -> ndarray[tuple[int, int]]:
     """
     Remove shadow splotches from a water mask ndarray.
 
@@ -302,6 +298,9 @@ def clean_water_mask(mask_array: ndarray[tuple[int, int]], max_size=CLEAN_MASK_M
 
     :return: cleaned: ndarray (bool) - True where water, False elsewhere
     """
+    config = Config()
+    if max_size <= 0 or max_size is None:
+        max_size = config.get("water_detector", "clean_mask_max_splotch_size")
 
     n_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
         mask_array.view(np.uint8), connectivity=8
@@ -319,7 +318,7 @@ def detect_holes(mask: ndarray[tuple[bool, bool]]) -> ndarray[tuple[int, int]]:
 
     :param mask: the mask array to detect holes in.
     """
-    max_size = MIN_HOLE_SIZE
+    max_size = Config().get("water_detector", "min_hole_size")
     filled_mask = ndimage.binary_fill_holes(mask)
     holes = filled_mask ^ mask
     cleaned = morphology.remove_small_objects(holes, max_size=max_size)
@@ -527,9 +526,11 @@ def dissimilarity_confidence(x: float, k: float = 6.0) -> float:
     Returns:
         Confidence that the two images are different, in [0, 1].
     """
-    if x >= 0.8:
+    config = Config()
+
+    if x >= float(config.get("water_detector", "confidence_upper_threshold")):
         return 1.0
-    return (np.exp(k * x) - 1) / (np.exp(k * 0.8) - 1)
+    return (np.exp(k * x) - 1) / (np.exp(k *float(config.get("water_detector", "confidence_function_target")) ) - 1)
 
 
 

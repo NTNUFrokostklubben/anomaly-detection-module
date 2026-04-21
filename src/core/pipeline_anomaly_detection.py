@@ -11,6 +11,7 @@ from core.line_artifact_detector import detect_glare
 from entity.image.Image import Image
 import core.artifact_detector as ad
 from utils.db_connector import DbConnector, AnalysisType
+from services.config_parser.ConfigHandler import Config
 
 logger = logging.getLogger("analysis.pipeline")
 
@@ -82,8 +83,8 @@ def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, wat
     :param log:  bool for whether to log or not.
     """
     try:
-
-        increment = 30
+        config = Config()
+        increment = int(config.get("pipeline", "water_mask_increment"))
         t_0 = time.monotonic()
         polygon_mask = wd.create_water_polygon_mask(water_gdf, sosig_df, image.img_id, image.metadata)
         #print(f"  polygon_mask:   {(time.monotonic() - t_0):.2f}s")
@@ -160,6 +161,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         t0 = time.perf_counter()
         db = DbConnector()
         anomaly_sets = []
+        config = Config()
         log = True
         with ThreadPoolExecutor() as executor:
             for i in range(image_count - 1):
@@ -179,7 +181,8 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
                 #print(f"Loading images to arr : {t_load:.6f}s \n")
 
                 futures = {
-                    executor.submit(start_artifact_detection_analysis, image1, 50, log): "artifact",
+                    executor.submit(start_artifact_detection_analysis, image1,
+                                    config.get("pipeline", "artifact_block_increment"), log): "artifact",
                     executor.submit(start_glare_detection_analysis, arr1, img1_path, log): "glare",
                 }
                 if sosi_gdf.iloc[i]["stripenummer"] == sosi_gdf.iloc[i + 1]["stripenummer"]:
