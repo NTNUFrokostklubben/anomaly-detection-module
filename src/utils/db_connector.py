@@ -323,6 +323,8 @@ class DbConnector:
         """
         try:
             cursor = self._conn.cursor()
+            if not isinstance(analysis_type, AnalysisType):
+                return False
             img_data = cursor.execute("""SELECT *
                                          FROM images
                                          WHERE img_id = ? """, (img_file_name,)).fetchone()
