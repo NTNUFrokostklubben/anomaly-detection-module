@@ -136,7 +136,7 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
 
         fetched_project: ProjectMetadata = DbConnector().get_project(request.project_name)
         total = count_images_in_folder(fetched_project.image_folder_path)
-        print(f"GetProgress: last={fetched_project.last_processed_image_index}, total={total}")
+        # print(f"GetProgress: last={fetched_project.last_processed_image_index}, total={total}")
         return anomaly_pb2.GetProgressResponse(
             project_name=fetched_project.project_name,
             last_processed_image=fetched_project.last_processed_image_index,
