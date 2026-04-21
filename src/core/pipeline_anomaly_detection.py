@@ -182,7 +182,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
                     executor.submit(start_artifact_detection_analysis, image1, 50, log): "artifact",
                     executor.submit(start_glare_detection_analysis, arr1, img1_path, log): "glare",
                 }
-                if sosi_gdf.iloc[i]["stripenummer"] != sosi_gdf.iloc[i + 1]["stripenummer"]:
+                if sosi_gdf.iloc[i]["stripenummer"] == sosi_gdf.iloc[i + 1]["stripenummer"]:
                      futures[ executor.submit(start_color_difference_analysis, sosi_gdf, i, arr1, arr2, image1.img_id, log)] = "color"
 
                 if water_gdf is not None:
