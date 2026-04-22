@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from core.color_diff import check_difference_two_images
 from pathlib import Path
 import time
-from controller.image_cache_controller import load_two_image_arrays
+from controller.image_cache_controller import load_two_image_arrays, ImageCache
 import geopandas as gpd
 import numpy as np
 import core.water_detector as wd
@@ -210,6 +210,8 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
 
         print("Overall time:", time.perf_counter() - t0)
         print(f"Found {image_count} images in the GeoPackage.")
+        cache = ImageCache()
+        cache.clear()
         return anomaly_sets
     except Exception as e:
         logger.error("Anomaly analysis failed, excpt_msg:%s",e,  extra={"analysis": "overall_anomaly_analysis", "img_id": "multiple"})
