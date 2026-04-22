@@ -100,7 +100,8 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
     print(f"Time analysis: {t:.6f}s\n")
 
 
-def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, *, water_gdf: gpd.GeoDataFrame = None, on_image_complete=None):
+def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, *, water_gdf: gpd.GeoDataFrame = None,
+                           on_image_complete=None, stop_analysis_event=None):
     """
     Start anomaly analysis
     Args:
@@ -108,6 +109,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         image_folder_path (Path): The folder path of the images to analyse
         water_gdf: The water contour GeoDataFrame for water masking.
         on_image_complete: Callback function for when image is done analyzing
+        stop_analysis_event: Event called over grpc to stop processing the analysis and send back current dataset.
     """
     image_count = len(sosi_gdf)
 
@@ -116,11 +118,15 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
     anomaly_sets = []
     with ThreadPoolExecutor() as executor:
         for i in range(image_count - 1):
+            # Stops analysis if the stop_analysis_event has been triggered. This is cross-thread
+            if stop_analysis_event is not None and stop_analysis_event.is_set():
+                break
             t_0 = time.monotonic()
             img1_path = image_folder_path / sosi_gdf.iloc[i]["bildefilRGB"]
             img2_path = image_folder_path / sosi_gdf.iloc[i + 1]["bildefilRGB"]
 
-            if (not img1_path.exists() or not img2_path.exists()) or (sosi_gdf.iloc[i]["stripenummer"] != sosi_gdf.iloc[i + 1]["stripenummer"]):
+            if (not img1_path.exists() or not img2_path.exists()) or (
+                    sosi_gdf.iloc[i]["stripenummer"] != sosi_gdf.iloc[i + 1]["stripenummer"]):
                 continue
 
             image1: Image = Image.from_filename(sosi_gdf.iloc[i]["bildefilRGB"])
