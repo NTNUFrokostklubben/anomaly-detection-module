@@ -45,6 +45,16 @@ class AnomalyDetectorServiceStub(object):
                 request_serializer=anomaly__pb2.DetectAnomalySetRequest.SerializeToString,
                 response_deserializer=anomaly__pb2.DetectAnomalySetResponse.FromString,
                 _registered_method=True)
+        self.GetProgress = channel.unary_unary(
+                '/skavl.anomaly.v1.AnomalyDetectorService/GetProgress',
+                request_serializer=anomaly__pb2.GetProgressRequest.SerializeToString,
+                response_deserializer=anomaly__pb2.GetProgressResponse.FromString,
+                _registered_method=True)
+        self.StopAnalysis = channel.unary_unary(
+                '/skavl.anomaly.v1.AnomalyDetectorService/StopAnalysis',
+                request_serializer=anomaly__pb2.StopAnalysisRequest.SerializeToString,
+                response_deserializer=anomaly__pb2.StopAnalysisResponse.FromString,
+                _registered_method=True)
 
 
 class AnomalyDetectorServiceServicer(object):
@@ -63,6 +73,18 @@ class AnomalyDetectorServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetProgress(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def StopAnalysis(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_AnomalyDetectorServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -75,6 +97,16 @@ def add_AnomalyDetectorServiceServicer_to_server(servicer, server):
                     servicer.DetectAnomalySet,
                     request_deserializer=anomaly__pb2.DetectAnomalySetRequest.FromString,
                     response_serializer=anomaly__pb2.DetectAnomalySetResponse.SerializeToString,
+            ),
+            'GetProgress': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetProgress,
+                    request_deserializer=anomaly__pb2.GetProgressRequest.FromString,
+                    response_serializer=anomaly__pb2.GetProgressResponse.SerializeToString,
+            ),
+            'StopAnalysis': grpc.unary_unary_rpc_method_handler(
+                    servicer.StopAnalysis,
+                    request_deserializer=anomaly__pb2.StopAnalysisRequest.FromString,
+                    response_serializer=anomaly__pb2.StopAnalysisResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -132,6 +164,60 @@ class AnomalyDetectorService(object):
             '/skavl.anomaly.v1.AnomalyDetectorService/DetectAnomalySet',
             anomaly__pb2.DetectAnomalySetRequest.SerializeToString,
             anomaly__pb2.DetectAnomalySetResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetProgress(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/skavl.anomaly.v1.AnomalyDetectorService/GetProgress',
+            anomaly__pb2.GetProgressRequest.SerializeToString,
+            anomaly__pb2.GetProgressResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StopAnalysis(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/skavl.anomaly.v1.AnomalyDetectorService/StopAnalysis',
+            anomaly__pb2.StopAnalysisRequest.SerializeToString,
+            anomaly__pb2.StopAnalysisResponse.FromString,
             options,
             channel_credentials,
             insecure,

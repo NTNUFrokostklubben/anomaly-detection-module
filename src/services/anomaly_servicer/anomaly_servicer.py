@@ -1,3 +1,4 @@
+import threading
 from pathlib import Path
 
 import grpc
@@ -30,8 +31,9 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
 
     def __init__(self):
         self.db_connection = DbConnector()
+        self._stop_event = threading.Event()
 
-    def DescribeAnomalyProject(self, request, context):
+    def DescribeAnomalyProject(self, request: anomaly_pb2.DescribeAnomalyProjectRequest, context):
         """
         Describes an anomaly project in addition to the last processed image.
 
@@ -61,7 +63,7 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
         context.abort(grpc.StatusCode.NOT_FOUND, "Project Metadata not found or could not be added")
         return None
 
-    def DetectAnomalySet(self, request, context):
+    def DetectAnomalySet(self, request: anomaly_pb2.DetectAnomalySetRequest, context):
         """
         Temporary entrypoint over gRPC to test triggering an analysis from flutter based on a supplied
         SOSI path and Image folder path
@@ -78,17 +80,29 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
 
         image_folder_path = Path(project_metadata.image_folder_path)
 
+        # Clears the stop event to not stop immediately if it was set.
+        self._stop_event.clear()
+
         # Convert sosi to gpkg
         gdf = convert_sosi_get_gdf(Path(project_metadata.sosi_path))
 
+        def on_image_complete():
+            DbConnector().increment_project_image_index(project_metadata.project_name)
+
         detected_anomalies: list[Image] = []
+
+        if request.start_mode == anomaly_pb2.START_RESTART:
+            DbConnector().set_project_image_index(project_metadata.project_name, 0)
 
         if project_metadata.sosi_water_mask_path:
             # Convert Water polygon sosi to gpkg and run analysis with water mask
             water_gdf = convert_sosi_get_gdf(Path(project_metadata.sosi_water_mask_path))
-            detected_anomalies = start_anomaly_analysis(gdf, image_folder_path, water_gdf=water_gdf)
+            detected_anomalies = start_anomaly_analysis(gdf, image_folder_path, water_gdf=water_gdf,
+                                                        on_image_complete=on_image_complete,
+                                                        stop_analysis_event=self._stop_event)
         else:
-            detected_anomalies = start_anomaly_analysis(gdf, image_folder_path)
+            detected_anomalies = start_anomaly_analysis(gdf, image_folder_path, on_image_complete=on_image_complete,
+                                                        stop_analysis_event=self._stop_event)
 
         print("AnomalyServiceServicer.DetectAnomalySet")
 
@@ -123,8 +137,34 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
             anomaly_response=anomaly_response
         )
 
-
         context.abort(grpc.StatusCode.UNIMPLEMENTED, "Not fully implemented yet")
+
+    def GetProgress(self, request: anomaly_pb2.GetProgressRequest, context):
+        """
+        Returns progress of analysis.
+        Currently polled from client every X seconds
+
+        Args:
+            request: GetProgressRequest
+            context:
+
+        Returns:
+            Project time, processed images, total images to process
+        """
+        fetched_project: ProjectMetadata = DbConnector().get_project(request.project_name)
+        total = count_images_in_folder(fetched_project.image_folder_path)
+        # print(f"GetProgress: last={fetched_project.last_processed_image_index}, total={total}")
+        return anomaly_pb2.GetProgressResponse(
+            project_name=fetched_project.project_name,
+            last_processed_image=fetched_project.last_processed_image_index,
+            total_images=total
+        )
+
+        context.abort(grpc.StatusCode.UNIMPLEMENTED, "test")
+
+    def StopAnalysis(self, request: anomaly_pb2.StopAnalysisRequest, context):
+        self._stop_event.set()
+        return anomaly_pb2.StopAnalysisResponse(acknowledged=True)
 
     def _resolve_project_metadata(self, pb_project_metadata: anomaly_pb2.ProjectMetadata, context) -> ProjectMetadata:
         """

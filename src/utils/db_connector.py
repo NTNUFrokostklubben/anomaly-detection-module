@@ -231,7 +231,31 @@ class DbConnector:
                          )
             return False
 
-    def increment_project_image_intex(self, project_name: str):
+    def set_project_image_index(self, project_name: str, num: int):
+        """
+        Sets "last processed image" related to a project to explicit number
+
+        Args:
+            project_name: Project name to update
+            num: Number to set last processed index. 0 addressed
+
+        Returns:
+
+        """
+        try:
+            cursor = self._conn.cursor()
+            cursor.execute("""
+            UPDATE projects
+            SET last_processed_image_index = :num
+                WHERE project_name = :project_name
+            """, {"num": num, "project_name": project_name})
+            self.commit()
+            return True
+        except Exception as e:
+            print(e)
+            return False
+
+    def increment_project_image_index(self, project_name: str):
         """
         Updates the last processed image index for a given project name
 
@@ -277,7 +301,7 @@ class DbConnector:
             result = cursor.fetchone()
             if result is None:
                 return None
-            return ProjectMetadata.from_row(cursor.fetchone())
+            return ProjectMetadata.from_row(result)
         except Exception as e:
             logger.error("Error: application failed to read from database with error: %s", e,
                          extra={"operation": "SELECT", "table": "projects"}

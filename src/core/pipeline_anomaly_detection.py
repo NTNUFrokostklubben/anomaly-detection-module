@@ -1,5 +1,6 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from core.color_diff import check_difference_two_images
 from pathlib import Path
 import time
@@ -146,13 +147,16 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
         logger.error("Color difference analysis failed, excpt_msg:%s",e,  extra={"analysis": "color_difference", "img_id": image_id})
 
 
-def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, *, water_gdf: gpd.GeoDataFrame = None):
+def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, *, water_gdf: gpd.GeoDataFrame = None,
+                           on_image_complete=None, stop_analysis_event=None):
     """
     Start anomaly analysis
     Args:
         sosi_gdf: The geodataframe to analyse
         image_folder_path (Path): The folder path of the images to analyse
         water_gdf: The water contour GeoDataFrame for water masking.
+        on_image_complete: Callback function for when image is done analyzing
+        stop_analysis_event: Event called over grpc to stop processing the analysis and send back current dataset.
     """
     try:
 
@@ -165,6 +169,9 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         log = True
         with ThreadPoolExecutor() as executor:
             for i in range(image_count - 1):
+                # Stops analysis if the stop_analysis_event has been triggered. This is cross-thread
+                if stop_analysis_event is not None and stop_analysis_event.is_set():
+                    break
                 t_0 = time.monotonic()
                 img1_path = image_folder_path / sosi_gdf.iloc[i]["bildefilRGB"]
                 img2_path = image_folder_path / sosi_gdf.iloc[i + 1]["bildefilRGB"]
@@ -205,6 +212,8 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
                 image1.img_arr = None
                 image1.metadata = None
                 anomaly_sets.append(image1)
+                if on_image_complete:
+                    on_image_complete()
                 t_1 = time.monotonic()
                 print(f"Total time for analyses on image {image1.img_id}: {(t_1 - t_0):.2f}s")
 

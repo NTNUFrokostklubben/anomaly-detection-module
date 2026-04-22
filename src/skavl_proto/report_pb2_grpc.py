@@ -35,8 +35,13 @@ class ReportServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.GenerateReport = channel.unary_unary(
-                '/skavl.report.v1.ReportService/GenerateReport',
+        self.GenerateReportUnclassified = channel.unary_unary(
+                '/skavl.report.v1.ReportService/GenerateReportUnclassified',
+                request_serializer=report__pb2.ReportGenerationRequest.SerializeToString,
+                response_deserializer=report__pb2.ReportGenerationResponse.FromString,
+                _registered_method=True)
+        self.GenerateReportClassified = channel.unary_unary(
+                '/skavl.report.v1.ReportService/GenerateReportClassified',
                 request_serializer=report__pb2.ReportGenerationRequest.SerializeToString,
                 response_deserializer=report__pb2.ReportGenerationResponse.FromString,
                 _registered_method=True)
@@ -46,8 +51,15 @@ class ReportServiceServicer(object):
     """Service for generating reports from anomaly data
     """
 
-    def GenerateReport(self, request, context):
-        """Generates a report based on the provided anomaly sets and metadata
+    def GenerateReportUnclassified(self, request, context):
+        """Generates a unclassified report based on the provided anomaly sets and metadata
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GenerateReportClassified(self, request, context):
+        """Generates a classified report based on the provided anomaly sets and metadata
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -56,8 +68,13 @@ class ReportServiceServicer(object):
 
 def add_ReportServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'GenerateReport': grpc.unary_unary_rpc_method_handler(
-                    servicer.GenerateReport,
+            'GenerateReportUnclassified': grpc.unary_unary_rpc_method_handler(
+                    servicer.GenerateReportUnclassified,
+                    request_deserializer=report__pb2.ReportGenerationRequest.FromString,
+                    response_serializer=report__pb2.ReportGenerationResponse.SerializeToString,
+            ),
+            'GenerateReportClassified': grpc.unary_unary_rpc_method_handler(
+                    servicer.GenerateReportClassified,
                     request_deserializer=report__pb2.ReportGenerationRequest.FromString,
                     response_serializer=report__pb2.ReportGenerationResponse.SerializeToString,
             ),
@@ -74,7 +91,7 @@ class ReportService(object):
     """
 
     @staticmethod
-    def GenerateReport(request,
+    def GenerateReportUnclassified(request,
             target,
             options=(),
             channel_credentials=None,
@@ -87,7 +104,34 @@ class ReportService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/skavl.report.v1.ReportService/GenerateReport',
+            '/skavl.report.v1.ReportService/GenerateReportUnclassified',
+            report__pb2.ReportGenerationRequest.SerializeToString,
+            report__pb2.ReportGenerationResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GenerateReportClassified(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/skavl.report.v1.ReportService/GenerateReportClassified',
             report__pb2.ReportGenerationRequest.SerializeToString,
             report__pb2.ReportGenerationResponse.FromString,
             options,
