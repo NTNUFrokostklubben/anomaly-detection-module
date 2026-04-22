@@ -1,10 +1,18 @@
+import logging
+import sqlite3
+from unittest.mock import MagicMock
+
 import pytest
 import numpy as np
 
+from services.logger.logger import setup_logging
 from utils.db_connector import DbConnector
 
 
 IMG_NAME = "HX-14365_073_001_14822.tif"
+@pytest.fixture(scope="session",autouse=True)
+def setup():
+    setup_logging()
 
 
 @pytest.fixture(autouse=True)
@@ -76,6 +84,26 @@ def test_add_artifact_data_blob_roundtrip():
     ).fetchone()
     restored = np.frombuffer(row[2], dtype=row[0]).reshape(eval(row[1]))
     np.testing.assert_array_equal(restored, data)
+
+
+def test_duplicate_image_logs_error(caplog):
+    db = DbConnector()
+    db.add_image(IMG_NAME)
+    with caplog.at_level(logging.ERROR, logger="database.connector"):
+        db.add_image(IMG_NAME)
+    assert any("write to database" in r.message for r in caplog.records)
+
+
+def test_add_artifact_data_logs_on_db_error(caplog):
+    db = DbConnector()
+    mock_conn = MagicMock()
+    mock_conn.cursor.side_effect = sqlite3.DatabaseError("forced error")
+    db._conn = mock_conn
+    with caplog.at_level(logging.ERROR, logger="database.connector"):
+        db.add_artifact_data(IMG_NAME, np.array([1.0], dtype=np.float32), offset=0)
+    record = caplog.records[0]
+    assert record.levelno == logging.ERROR
+    assert "forced error" in record.message
 
 
 def test_add_artifact_candidate():
