@@ -80,6 +80,9 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
 
         image_folder_path = Path(project_metadata.image_folder_path)
 
+        # Clears the stop event to not stop immediately if it was set.
+        self._stop_event.clear()
+
         # Convert sosi to gpkg
         gdf = convert_sosi_get_gdf(Path(project_metadata.sosi_path))
 
