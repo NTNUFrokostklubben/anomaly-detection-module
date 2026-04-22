@@ -1,4 +1,6 @@
+import gc
 import logging
+import tracemalloc
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from core.color_diff import check_difference_two_images
 from pathlib import Path
@@ -155,7 +157,6 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         water_gdf: The water contour GeoDataFrame for water masking.
     """
     try:
-
         image_count = len(sosi_gdf)
 
         t0 = time.perf_counter()
@@ -163,7 +164,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         anomaly_sets = []
         config = Config()
         log = True
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
             for i in range(image_count - 1):
                 t_0 = time.monotonic()
                 img1_path = image_folder_path / sosi_gdf.iloc[i]["bildefilRGB"]
@@ -182,7 +183,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
 
                 futures = {
                     executor.submit(start_artifact_detection_analysis, image1,
-                                    config.get("pipeline", "artifact_block_increment"), log): "artifact",
+                                    int(config.get("pipeline", "artifact_block_increment")), log): "artifact",
                     executor.submit(start_glare_detection_analysis, arr1, img1_path, log): "glare",
                 }
                 if sosi_gdf.iloc[i]["stripenummer"] == sosi_gdf.iloc[i + 1]["stripenummer"]:
@@ -210,8 +211,11 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
 
         print("Overall time:", time.perf_counter() - t0)
         print(f"Found {image_count} images in the GeoPackage.")
+        del arr1
+        del arr2
         cache = ImageCache()
         cache.clear()
+        gc.collect()
         return anomaly_sets
     except Exception as e:
         logger.error("Anomaly analysis failed, excpt_msg:%s",e,  extra={"analysis": "overall_anomaly_analysis", "img_id": "multiple"})

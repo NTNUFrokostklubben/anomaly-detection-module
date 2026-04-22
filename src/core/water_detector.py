@@ -152,8 +152,7 @@ def _fill_block(mask: np.ndarray, polygon_mask: np.ndarray, y_start: int, y_end:
                 mask[y, x] = True
 
 
-@njit(parallel=True, cache=True)
-def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int, *, constraint_region: np.ndarray[tuple[bool]]) -> np.ndarray:
+def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int, constraint_region: np.ndarray[tuple[bool]]) -> np.ndarray:
     """
     Create a mask outlining the water on an image using a jumping block algorithm. Optionally allows for looking
      only within a constrained region of the full image.
@@ -163,12 +162,17 @@ def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int
     :param constraint_region: the region to not run the algorithm in.
     :return: a mask outlining water for the corresponding image.
     """
+    config = Config()
+    hue_min = float(config.get("water_detector", "water_hue_min"))
+    hue_max = float(config.get("water_detector", "water_hue_max"))
+    chroma_min = float(config.get("water_detector", "water_chroma_min"))
+    return _create_water_mask_hsl_core(data, increment, constraint_region, hue_min, hue_max, chroma_min)
+
+
+@njit(parallel=True, cache=True)
+def _create_water_mask_hsl_core(data: np.ndarray[tuple[int, int, int]], increment: int, constraint_region: np.ndarray[tuple[bool]], hue_min: float, hue_max: float, chroma_min: float) -> np.ndarray:
     y_shape = data.shape[1]
     x_shape = data.shape[2]
-    config = Config()
-    WATER_HUE_MIN = float(config.get("water_detector", "water_hue_min"))
-    WATER_HUE_MAX = float(config.get("water_detector", "water_hue_max"))
-    WATER_CHROMA_MIN = float(config.get("water_detector", "water_chroma_min"))
 
     if constraint_region is None:
         constraint_region = np.ones((data.shape[1], data.shape[2]), dtype=np.bool_)
@@ -193,7 +197,7 @@ def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int
             r_mean, g_mean, b_mean = block_mean_rgb(data, y_start, y_end, x_start, x_end, constraint_region)
             h, chroma = _rgb_to_hue(r_mean, g_mean, b_mean)
 
-            if WATER_HUE_MIN < h < WATER_HUE_MAX and chroma > WATER_CHROMA_MIN:
+            if hue_min < h < hue_max and chroma > chroma_min:
                 if not previous:
                     x_start = _find_coast_x(data, constraint_region, y_start, y_end, x_start, x_end)
                 _fill_block(mask, constraint_region, y_start, y_end, x_start, x_end)

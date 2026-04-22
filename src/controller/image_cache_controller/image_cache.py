@@ -39,12 +39,14 @@ class ImageCache:
             Array of the image.
         """
         img_path = img_path.resolve()
+        cache_key = str(img_path) + "_" + str(level)
+        if cache_key in self._cache:
+            with rasterio.open(img_path) as ds:
+                rm = RasterMeta.from_rasterio(ds)
+            return self._cache[cache_key], rm
         with rasterio.open(img_path) as ds:
             rm = RasterMeta.from_rasterio(ds)
-        # When img_path is in the cache
-        img_path = str(img_path) + "_" + str(level)
-        if img_path in self._cache:
-            return self._cache[img_path], rm
+        img_path = cache_key
 
         # When img_path is NOT in the cache
         arr = read_tiff_fast(str(img_path).rpartition("_")[0],level=level, series=series)
@@ -65,3 +67,4 @@ class ImageCache:
     def clear(self):
         """Clear cache completely."""
         self._cache.clear()
+        self._order.clear()
