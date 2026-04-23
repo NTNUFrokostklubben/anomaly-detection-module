@@ -3,7 +3,6 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.signal import find_peaks
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
 from utils.timer import Timer
 
 # Gaussian σ (pixels) for scene-brightness blur along one axis.
@@ -41,15 +40,21 @@ def _load_gray_from_array(arr: NDArray, timer: Timer) -> NDArray[np.float32]:
     Returns:
         gray: (H, W) float32 array normalised to [0, 255]
     """
-    with timer.measure("load_gray: array conversion"):
-        if arr.ndim == 3:
-            arr = np.transpose(arr, (1, 2, 0))
-
-        raw_u8 = cv2.normalize(arr, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-        gray_u8 = cv2.cvtColor(raw_u8, cv2.COLOR_RGB2GRAY) if raw_u8.ndim == 3 else raw_u8
-
-    with timer.measure("load_gray: normalize to float32"):
-        return cv2.normalize(gray_u8, None, 0, 255, cv2.NORM_MINMAX).astype(np.float32)
+    with timer.measure("load_gray: grayscale conversion"):
+        if arr.ndim == 2:
+            return arr.astype(np.float32)
+        # BT.601 weights applied band-by-band to avoid creating a (H, W, C) intermediate
+        gray = arr[0].astype(np.float32)
+        gray *= 0.299
+        tmp = arr[1].astype(np.float32)
+        tmp *= 0.587
+        gray += tmp
+        del tmp
+        tmp = arr[2].astype(np.float32)
+        tmp *= 0.114
+        gray += tmp
+        del tmp
+    return gray
 
 
 def _highpass(gray: NDArray[np.float32], sigma: int, axis: str, timer: Timer, ) -> NDArray[np.float32]:
@@ -81,7 +86,8 @@ def _highpass(gray: NDArray[np.float32], sigma: int, axis: str, timer: Timer, ) 
         blur = cv2.resize(blur_s, (w, h), interpolation=cv2.INTER_LINEAR)
         del blur_s
 
-        return gray - blur
+        np.subtract(gray, blur, out=blur)
+        return blur
 
 
 def _score_profile(
@@ -308,11 +314,8 @@ def detect_glare(
 
     #print("Analysing image: ", img_path)
 
-    with ThreadPoolExecutor(max_workers=2) as ex:
-        f_v = ex.submit(_detect_axis, gray, 'col', **kw)
-        f_h = ex.submit(_detect_axis, gray, 'row', **kw)
-        v_lines = f_v.result()
-        h_lines = f_h.result()
+    v_lines = _detect_axis(gray, 'col', **kw)
+    h_lines = _detect_axis(gray, 'row', **kw)
 
     # print(f"  Scanning vertical glare   → {len(v_lines)} line(s)")
     # print(f"  Scanning horizontal glare → {len(h_lines)} line(s)")
