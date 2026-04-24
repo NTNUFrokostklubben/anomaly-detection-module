@@ -1,8 +1,6 @@
 import gc
 import logging
-import tracemalloc
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
 from core.color_diff import check_difference_two_images
 from pathlib import Path
 import time
@@ -10,7 +8,7 @@ from controller.image_cache_controller import load_two_image_arrays, ImageCache
 import geopandas as gpd
 import numpy as np
 import core.water_detector as wd
-from core.line_artifact_detector import detect_glare
+from core.line_artefact_detector import detect_line_artefact
 from entity.image.Image import Image
 import core.artifact_detector as ad
 from utils.db_connector import DbConnector, AnalysisType
@@ -18,9 +16,9 @@ from services.config_parser.ConfigHandler import Config
 
 logger = logging.getLogger("analysis.pipeline")
 
-def start_glare_detection_analysis(arr: np.ndarray, img_path: Path, log: bool):
+def start_line_artefact_detection_analysis(arr: np.ndarray, img_path: Path, log: bool):
     """
-    Run glare detection on a preloaded image array.
+    Run line artefact detection on a preloaded image array.
 
     Args:
         arr: (C, H, W) array already loaded in cache
@@ -28,18 +26,16 @@ def start_glare_detection_analysis(arr: np.ndarray, img_path: Path, log: bool):
         log: whether to print or log the results of the analysis
     """
     try:
-        #print("----------- Glare Detection -------------")
         db = DbConnector()
         t_0 = time.monotonic()
-        glare = detect_glare(arr, img_path)
-        # Add results to DB when confidence algorithm is finished
-        #db.add_analysis(img_path.name, AnalysisType.ARTIFACT_LINE,confidence_result)
+        all_lines, confidence_result = detect_line_artefact(arr)
+        db.add_analysis(img_path.name, AnalysisType.ARTIFACT_LINE,confidence_result)
         if log:
-            for ln in glare:
+            for ln in all_lines:
                 logger.info("glare line found:  %s  centre=%s  width=%spx  score=%s",ln['type'],ln['centre'], ln['width_px'], ln['peak_score'],
                             extra={"analysis": "glare", "img_id": img_path.name})
         else:
-            for ln in glare:
+            for ln in all_lines:
                 print(f"  {ln['type']}  centre={ln['centre']}  width={ln['width_px']}px  score={ln['peak_score']:.3f}")
             t_1 = time.monotonic()
             print(f"Total time for line artifact detection: {(t_1 - t_0):.2f}s")
@@ -191,7 +187,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
                 futures = {
                     executor.submit(start_artifact_detection_analysis, image1,
                                     int(config.get("pipeline", "artifact_block_increment")), log): "artifact",
-                    executor.submit(start_glare_detection_analysis, arr1, img1_path, log): "glare",
+                    executor.submit(start_line_artefact_detection_analysis, arr1, img1_path, log): "line_artifact",
                 }
                 if sosi_gdf.iloc[i]["stripenummer"] == sosi_gdf.iloc[i + 1]["stripenummer"]:
                      futures[ executor.submit(start_color_difference_analysis, sosi_gdf, i, arr1, arr2, image1.img_id, log)] = "color"
