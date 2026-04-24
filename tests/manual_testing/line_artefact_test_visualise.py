@@ -5,9 +5,9 @@ Uses the production line_detector.detect_glare() for all detection logic,
 then draws the results onto the image for inspection.
 
 Usage:
-    python test_glare_visualise.py
-    python test_glare_visualise.py --image path/to/image.tif --output path/to/out.png
-    python test_glare_visualise.py --image path/to/image.tif --no-cache   # use cv2 directly
+    python line_artefact_test_visualise.py
+    python line_artefact_test_visualise.py --image path/to/image.tif --output path/to/out.png
+    python line_artefact_test_visualise.py --image path/to/image.tif --no-cache   # use cv2 directly
 """
 
 import argparse
@@ -16,7 +16,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from core.line_artifact_detector import detect_glare
+from core.line_artefact_detector import detect_line_artefact
 
 # Paths (edit these for quick runs without CLI args)
 DEFAULT_IMAGE = Path(
@@ -162,7 +162,7 @@ def main() -> None:
     h, w = raw_vis.shape[:2]
     print(f"Loaded: {w}×{h}\n")
 
-    lines = detect_glare(img_arr, img_path=args.image)
+    lines,_ = detect_line_artefact(img_arr);
 
     vis = _to_vis(raw_vis)
     vis = draw_glare_lines(vis, lines)
