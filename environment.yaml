@@ -9,14 +9,15 @@ dependencies:
   - gdal
   - geopandas
   - cudatoolkit
-  - imagecodecs
   - rasterio
   - opencv
   - affine
   - conda-lock
-  - tifffile
   - pytest
   - chardet
   - pyinstaller
   - grpcio
   - grpcio-tools
+  - pip:
+    - imagecodecs
+    - tifffile

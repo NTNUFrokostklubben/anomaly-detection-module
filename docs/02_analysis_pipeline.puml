@@ -1,0 +1,54 @@
+@startuml 02 - Analysis Pipeline
+
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+participant "AnomalyServiceServicer\n/ CLI" as Caller
+participant "pipeline_anomaly_detection" as Pipeline
+participant "ImageCache / loader" as Cache
+participant "artifact_detector" as Artifact
+participant "line_artifact_detector" as Glare
+participant "color_diff" as ColorDiff
+participant "water_detector" as Water
+participant "DbConnector" as DB
+
+Caller -> Pipeline : start_anomaly_analysis(\n  sosi_gdf, image_folder,\n  water_gdf, on_image_complete,\n  stop_event)
+
+loop for each consecutive image pair (img_i, img_i+1)
+
+    Pipeline -> Cache : load_two_image_arrays(img1_path, img2_path)
+    Cache -> Cache : ImageCache.get() — LRU, capacity 2\nread_tiff_fast() if not cached
+    Cache --> Pipeline : arr1, meta1, arr2, meta2
+
+    Pipeline -> DB : add_image(img1), add_image(img2)
+
+    note over Pipeline
+      ThreadPoolExecutor — up to 4 parallel workers
+      [see 03_detectors for internal steps]
+    end note
+
+    par Artifact detection
+        Pipeline -> Artifact : detect_artifact_consistency(images, increment)
+        Artifact --> Pipeline : confidence score
+    else Glare detection
+        Pipeline -> Glare : detect_glare(img_arr, img_path)
+        Glare --> Pipeline : list of glare regions
+    else Color difference
+        Pipeline -> ColorDiff : check_difference_two_images(...)
+        ColorDiff --> Pipeline : avg1, avg2, diff, confidence
+    else Water detection
+        Pipeline -> Water : create_water_polygon_mask(...)\ncreate_water_mask_hsl(...)
+        Water --> Pipeline : confidence score
+    end
+
+    Pipeline -> DB : add_analysis(img, type, confidence) ×4
+    Pipeline -> DB : get_max_confidence_img(img_name)
+    DB --> Pipeline : max_confidence
+
+    Pipeline -> Caller : on_image_complete(image) [callback]
+
+end
+
+Pipeline --> Caller : List[Image] with max_confidence
+
+@enduml
