@@ -13,7 +13,17 @@ import argparse
 
 def arg_checker():
     """
-    Checks arguments and starts the appropriate mode
+    Checks arguments and starts the appropriate mode.
+
+    **server** — Run as gRPC server.
+
+    - `-p`, `--port`: Port to start server with.
+
+    **cli** — Start a single run that processes once based on argument paths.
+
+    - `-i`, `--sosi-input`: Coverage polygon SOSI file. Required.
+    - `-p`, `--image-path`: Path containing aerial images related to coverage SOSI. Required.
+    - `-w`, `--water-input`: Water polygon file. Optional.
     """
     listener = setup_logging()
     try:
@@ -59,4 +69,7 @@ def serve(args):
 
 
 if __name__ == "__main__":
+    """
+    Main entrypoint of the application
+    """
     arg_checker()

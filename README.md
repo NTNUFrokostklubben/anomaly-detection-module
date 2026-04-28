@@ -34,11 +34,31 @@ This is done as requiring users and developers to install all the correct driver
 .\scripts\fetch_gdal_bundle_win.ps1
 ```
 
-Currently, to run the application, arguments are required that point to a sosi file and a folder containing geotiff images
-relating to the sosi file.
+Arguments can be checked by running.
 ```shell
-python .\src\main.py -i "C:path/to/sosi/file" -p "C:path/to/geotiff/folder"
-python .\src\main.py --sosi-input "C:path/to/sosi/file" --image-path "C:path/to/geotiff/folder"
+python .\src\server.py --help
+```
+
+The application can run as a CLI interface where it processes a dataset once and prints results to console or as a grpc server that waits for client connections to trigger services.
+To launch the application as a server or cli the following syntax should be used.
+```shell
+python .\src\server.py cli
+python .\src\server.py server
+```
+
+#### CLI
+When the application is started as CLI, there are some required arguments that need to be passed for the analysis to run.
+```shell
+python .\src\server.py cli -i "C:path/to/sosi/file" -p "C:path/to/geotiff/folder"
+python .\src\server.py cli --sosi-input "C:path/to/sosi/file" --image-path "C:path/to/geotiff/folder"
+```
+use `--help` for more information about optional arguments
+
+#### Server
+When running the application as a server no arguments are required, however there are optional arguments that can be passed.
+
+```shell
+python .\src\server.py server -p 50052
 ```
 
 ### Build
@@ -68,6 +88,13 @@ conda-lock -f environment.yaml -p win-64 -p linux-64
 
 When install the new lock-file has been created, verify that a new environment can be created from it using conda-lock install.
 Also check that the project builds and that it runs.
+
+## Documentation
+
+Documentation for the latest main branch release will be available on gh-pages. For generating local docs, use the pdoc package using the command.
+```
+pdoc src/ !src.skavl_proto -o docs/_build
+```
 
 ## License
 Open-source: AGPL-3.0 (see LICENSE)
