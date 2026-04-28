@@ -1,8 +1,9 @@
-from osgeo import gdal
+
 import numpy as np
+import rasterio
 from pathlib import Path
-from utils.io_tools import read_tiff_fast, load_tiff_dataset
-from os import path
+from utils.io_tools import read_tiff_fast
+from entity.image.RasterMeta import RasterMeta
 
 class ImageCache:
     """
@@ -26,7 +27,7 @@ class ImageCache:
         self._order = []  # track insertion order
         self._initialized = True
 
-    def get(self, img_path: Path, level: int = 0, series: int = 0) -> tuple[np.ndarray[tuple[int, int, int]], gdal.Dataset]:
+    def get(self, img_path: Path, level: int = 0, series: int = 0) -> tuple[np.ndarray[tuple[int, int, int]], RasterMeta ]:
         """
         Get an image from the cache.
         Args:
@@ -38,11 +39,14 @@ class ImageCache:
             Array of the image.
         """
         img_path = img_path.resolve()
-        ds = load_tiff_dataset(img_path)
-        # When img_path is in the cache
-        img_path = str(img_path) + "_" + str(level)
-        if img_path in self._cache:
-            return self._cache[img_path], ds
+        cache_key = str(img_path) + "_" + str(level)
+        if cache_key in self._cache:
+            with rasterio.open(img_path) as ds:
+                rm = RasterMeta.from_rasterio(ds)
+            return self._cache[cache_key], rm
+        with rasterio.open(img_path) as ds:
+            rm = RasterMeta.from_rasterio(ds)
+        img_path = cache_key
 
         # When img_path is NOT in the cache
         arr = read_tiff_fast(str(img_path).rpartition("_")[0],level=level, series=series)
@@ -58,8 +62,9 @@ class ImageCache:
         self._cache[img_path] = arr
         self._order.append(img_path)
 
-        return arr, ds
+        return arr, rm
 
     def clear(self):
         """Clear cache completely."""
         self._cache.clear()
+        self._order.clear()

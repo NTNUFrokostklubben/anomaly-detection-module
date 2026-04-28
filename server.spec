@@ -42,6 +42,7 @@ a = Analysis(
         (str(Path("src") / "utils" / "schema.sql"), 'utils'),
         (str(Path(sys.prefix) / 'Lib' / 'site-packages' / 'chardet' / 'models'), 'chardet/models'),
         (str(Path(sys.prefix) / 'Lib' / 'site-packages' / 'cv2' / 'python-3.12'), 'cv2/python-3.12'),
+        ('config/config.ini', 'config'),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],

@@ -1,3 +1,4 @@
+import logging
 import sqlite3 as sql
 from os.path import exists
 import atexit
@@ -9,6 +10,7 @@ import numpy as np
 from entity.enums.analysis_t import AnalysisType
 
 import sys
+logger = logging.getLogger("database.connector")
 
 class DbConnector:
     """
@@ -98,8 +100,12 @@ class DbConnector:
                    VALUES (?, ?, ?, ?, ?)""",
                 (img_file_name, prefix, line, line_number, abs_number))
             self.commit()
+            logger.info("Added image %s", img_file_name,
+                        extra={"operation": "INSERT", "table": "images"})
             return True
         except sql.DatabaseError as e:
+            logger.error("Error: application failed to write to database with error: %s", e,
+                         extra={"operation": "INSERT", "table": "images"})
             return False
 
     def add_artifact_data(self, img_file_name: str, data: np.ndarray, offset: int):
@@ -118,7 +124,13 @@ class DbConnector:
                                          WHERE img_id = ? """, (img_file_name,)).fetchone()
             if img_data is None:
                 self.add_image(img_file_name)
-
+        except sql.DatabaseError as e:
+            logger.error(
+                "Error: application failed to read from database with error: %s", e,
+                extra={"operation": "SELECT", "table": "images"}
+            )
+            return False
+        try:
             cursor.execute(
                     """
                            REPLACE INTO artifact_datapoints(img_id, dtype, shape, offset, data) VALUES(?, ?, ?, ?, ?)
@@ -127,7 +139,10 @@ class DbConnector:
             self.commit()
             return True
         except sql.DatabaseError as e:
-            print(e)
+            logger.error(
+                "Error: application failed to write to database with error: %s", e,
+                extra={"operation": "REPLACE INTO", "table": "artifact_datapoints"}
+                         )
             return False
 
     def add_artifact_candidate(self, img_file_name: str, color: float, diff: float, offset: int,
@@ -148,15 +163,25 @@ class DbConnector:
                                          WHERE img_id = ? """, (img_file_name,)).fetchone()
             if img_data is None:
                 self.add_image(img_file_name)
+        except sql.DatabaseError as e:
+            logger.error(
+            "Error: application failed to read from database with error: %s", e,
+            extra={"operation": "SELECT", "table": "images"}
+            )
+            return False
+        try:
 
             cursor.execute(
-                """ INSERT INTO artifact_candidates(coord_x, coord_y, img_id, color_value, diff_value, offset)
+                """ REPLACE INTO artifact_candidates(coord_x, coord_y, img_id, color_value, diff_value, offset)
                     VALUES (?, ?, ?, ?, ?, ?)""",
                 (coords[0], coords[1], img_file_name, color, diff, offset))
             self.commit()
             return True
         except sql.DatabaseError as e:
-            print(e)
+            logger.error(
+                "Error: application failed to write to database with error: %s", e,
+                extra={"operation": "REPLACE INTO", "table": "artifact_candidates"}
+            )
             return False
 
     def delete_artifact_data_line(self, prefix: str, line: int) -> bool:
@@ -176,7 +201,10 @@ class DbConnector:
                            """, (line, prefix,))
             self.commit()
             return True
-        except sql.DatabaseError:
+        except sql.DatabaseError as e:
+            logger.error("Error: application failed to remove line %s from project %s in database with error: %s", line, prefix ,e ,
+                extra = {"operation": "DELETE", "table": "artifact_candidates"}
+                         )
             return False
 
     def add_project(self, project_metadata: ProjectMetadata):
@@ -191,17 +219,43 @@ class DbConnector:
         try:
             cursor = self._conn.cursor()
             cursor.execute("""
-                           INSERT OR IGNORE INTO projects (project_name, sosi_path, image_folder_path, sosi_water_path)
+                           REPLACE INTO projects (project_name, sosi_path, image_folder_path, sosi_water_path)
                            VALUES (?, ?, ?, ?)
                            """, (project_metadata.project_name, project_metadata.sosi_path,
                                  project_metadata.image_folder_path, project_metadata.sosi_water_mask_path))
             self.commit()
             return True
         except Exception as e:
+            logger.error("Error: application failed to write to database with error: %s", e,
+                         extra={"operation": "REPLACE INTO", "table": "projects"}
+                         )
+            return False
+
+    def set_project_image_index(self, project_name: str, num: int):
+        """
+        Sets "last processed image" related to a project to explicit number
+
+        Args:
+            project_name: Project name to update
+            num: Number to set last processed index. 0 addressed
+
+        Returns:
+
+        """
+        try:
+            cursor = self._conn.cursor()
+            cursor.execute("""
+            UPDATE projects
+            SET last_processed_image_index = :num
+                WHERE project_name = :project_name
+            """, {"num": num, "project_name": project_name})
+            self.commit()
+            return True
+        except Exception as e:
             print(e)
             return False
 
-    def increment_project_image_intex(self, project_name: str):
+    def increment_project_image_index(self, project_name: str):
         """
         Updates the last processed image index for a given project name
 
@@ -221,9 +275,12 @@ class DbConnector:
             self.commit()
             return True
         except Exception as e:
+            logger.error("Error: application failed to write to database with error: %s", e,
+                         extra={"operation": "UPDATE", "table": "projects"}
+                         )
             return False
 
-    def get_project(self, project_name: str) -> ProjectMetadata:
+    def get_project(self, project_name: str) -> ProjectMetadata | None:
         """
         Gets project data stored in DB
 
@@ -244,15 +301,19 @@ class DbConnector:
             result = cursor.fetchone()
             if result is None:
                 return None
-            return ProjectMetadata.from_row(cursor.fetchone())
+            return ProjectMetadata.from_row(result)
         except Exception as e:
-            # print(f"get_project error: {e}")
+            logger.error("Error: application failed to read from database with error: %s", e,
+                         extra={"operation": "SELECT", "table": "projects"}
+                         )
             return None
 
-    def get_artifact_data_line(self, prefix: str, line: int) -> list[np.ndarray] | None:
+
+    def get_artifact_data_line(self, prefix: str, line: int, shape: str) -> list[np.ndarray] | None:
 
         """
         Get the computed artifact data for a line from the database.
+        :param shape: the shape of the data, ensures data of different resolution don't get compared.
         :param prefix: the prefix of the artifact data.
         :param line:   the line of the artifact data to get.
         :return: the computed artifact data for the line from the database or None
@@ -266,10 +327,14 @@ class DbConnector:
                                                    FROM images
                                                    WHERE line = ?
                                                      AND prefix = ?)
-                                  """, (line, prefix,))
+                                      AND shape = ?
+                                  """, (line, prefix, shape, ))
             self.commit()
             return [np.frombuffer(r[2], dtype=r[0]).reshape(eval(r[1])) for r in rows]
-        except sql.DatabaseError:
+        except sql.DatabaseError as e:
+            logger.error("Error: application failed to read from database with error: %s", e,
+                         extra={"operation": "SELECT", "table": "artifact_datapoints"}
+                         )
             return None
 
     def add_analysis(self, img_file_name: str, analysis_type: AnalysisType, confidence_lvl: float  ):
@@ -282,6 +347,8 @@ class DbConnector:
         """
         try:
             cursor = self._conn.cursor()
+            if not isinstance(analysis_type, AnalysisType):
+                return False
             img_data = cursor.execute("""SELECT *
                                          FROM images
                                          WHERE img_id = ? """, (img_file_name,)).fetchone()
@@ -297,7 +364,9 @@ class DbConnector:
             self.commit()
             return True
         except sql.DatabaseError as e :
-            print(e)
+            logger.error("Error: application failed to write to database with error: %s", e,
+                         extra={"operation": "REPLACE INTO", "table": "analysis_data"}
+                         )
             return False
 
     def get_all_img_over_confidence(self, project:str, confidence: float ) -> list[tuple[str, float]] | None:
@@ -319,9 +388,11 @@ class DbConnector:
                                              """, (project, confidence)).fetchall()
             self.commit()
             return confidence_data
-        except sql.DatabaseError:
+        except sql.DatabaseError as e:
+            logger.error("Error: application failed to read from database with error: %s", e,
+                         extra={"operation": "SELECT", "table": "analysis_data"}
+                         )
             return None
-
 
     def get_all_analysis_img(self, img_file_name: str) -> list[tuple[AnalysisType, float]] | None:
         """
@@ -336,7 +407,10 @@ class DbConnector:
                                              """, (img_file_name, )).fetchall()
             self.commit()
             return analysis_data
-        except sql.DatabaseError:
+        except sql.DatabaseError as e:
+            logger.error("Error: application failed to read from database with error: %s", e,
+                         extra={"operation": "SELECT", "table": "analysis_data"}
+                         )
             return None
 
 
@@ -353,15 +427,24 @@ class DbConnector:
                                              """, (img_file_name, )).fetchone()
             self.commit()
             return float(analysis_data[0])
-        except sql.DatabaseError:
+        except sql.DatabaseError as e:
+            logger.error("Error: application failed to read from database with error: %s", e,
+                         extra={"operation": "SELECT", "table": "analysis_data"}
+                         )
             return None
+
 
     def commit(self):
         """
         Shorthand method for commiting SQL query.
         :return:
         """
-        self._conn.commit()
+        try:
+            self._conn.commit()
+        except sql.DatabaseError as e:
+            logger.error("Error: application failed to commit to database with error: %s", e,
+                         extra={"operation": "COMMIT", "table": ""}
+                         )
 
     def __del__(self):
         """

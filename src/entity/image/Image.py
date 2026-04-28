@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 import numpy as np
-from osgeo.gdal import Dataset
+
+if TYPE_CHECKING:
+    from osgeo.gdal import Dataset
 
 import entity.image.Artifact as Art
 from entity.enums.analysis_t import AnalysisType
+from entity.image.RasterMeta import RasterMeta
 from utils.string_manip import slice_image_name
 
 
@@ -22,7 +27,7 @@ class Image:
         abs_number: Absolute image index across the whole project (e.g. 14822).
         project: Optional project name sourced from SKAVL metadata.
         img_arr: Optional image array in shape (bands, H, W).
-        dataset: Optional GDAL dataset for geo-referenced metadata access.
+        metadata: Optional dataset for geo-referenced metadata access. Can be pure dataset or picklable metadata.
     """
     img_id: str
     prefix: str
@@ -31,7 +36,7 @@ class Image:
     abs_number: int
     project: Optional[str] = None
     img_arr: Optional[np.ndarray] = None
-    dataset: Optional[Dataset] = None
+    metadata: Optional[Dataset] | Optional[RasterMeta] = None
     max_confidence: Optional[float] = None
     multi_analysis: Optional[list[tuple[AnalysisType, float]]] = None
     artifact_data: Optional[Art.ArtifactData] = None

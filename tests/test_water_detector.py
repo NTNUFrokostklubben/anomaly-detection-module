@@ -3,7 +3,7 @@ import pytest
 import geopandas as gpd
 from affine import Affine
 from shapely.geometry import MultiPolygon, Polygon
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, PropertyMock
 
 from core.water_detector import _affine_from_sosi_polygon, create_water_polygon_mask, dissimilarity_confidence
 
@@ -27,9 +27,9 @@ _WATER_CONTOUR = Polygon([(30, 40), (70, 40), (70, 60), (30, 60)])
 
 def _make_mock_ds(has_crs: bool) -> MagicMock:
     ds = MagicMock()
-    ds.RasterXSize = _W
-    ds.RasterYSize = _H
-    ds.GetProjection.return_value = "WGS84" if has_crs else ""
+    ds.width = _W
+    ds.height = _H
+    ds.projection = "WGS84" if has_crs else ""
     return ds
 
 
@@ -101,10 +101,10 @@ class TestCreateWaterPolygonMaskNoGeoref:
 
     def test_geotransform_not_called_without_crs(self):
         ds = _make_mock_ds(has_crs=False)
+        type(ds).geotransform = PropertyMock(side_effect=AssertionError("geotransform must not be accessed without CRS"))
         create_water_polygon_mask(
             _make_contour_df(), _make_sosi_df(self._IMG), self._IMG, ds
         )
-        ds.GetGeoTransform.assert_not_called()
 
     def test_water_pixels_detected_in_mask(self):
         ds = _make_mock_ds(has_crs=False)

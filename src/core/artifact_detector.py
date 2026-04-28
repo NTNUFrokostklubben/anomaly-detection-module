@@ -1,11 +1,11 @@
 import math
-from typing import Any
-
 import numpy as np
 import core.water_detector as wd
 from numba import prange, njit
 import utils.db_connector  as db
 from entity import image
+from services.config_parser.ConfigHandler import Config
+
 
 
 @njit(parallel=True, cache=True)
@@ -49,10 +49,9 @@ def detect_artifact_consistency(images: list[image.Image], increment: int) -> fl
              Low values (near 0) indicate the block has the same color across all images — likely an artifact.
              High values indicate the block varies across images — genuine scene content.
     """
-
-
+    config = Config()
     conn = db.DbConnector()
-    line_values = conn.get_artifact_data_line(images[0].prefix, images[0].line)
+    line_values = conn.get_artifact_data_line(images[0].prefix, images[0].line, str(images[0].img_arr.shape))
     if line_values is None and len(images) < 2:
         return None
     for img in images:
@@ -61,12 +60,12 @@ def detect_artifact_consistency(images: list[image.Image], increment: int) -> fl
         conn.add_artifact_data(img.img_id,data=img.artifact_data.data, offset= increment )
 
     all_data = line_values + [img.artifact_data.data for img in images]
-    if len(all_data) < 10:
+    if len(all_data) < int(config.get("artifact_block", "min_num_images_before_artifact_check")):
         return None
 
     stacked = np.stack(all_data)
     # (N, num_blocks, 3)
-    consistency = (stacked.max(axis=0) - stacked.min(axis=0)).sum(axis=1) / 3.0  # (num_blocks,)
+    consistency = (stacked.max(axis=0) - stacked.min(axis=0)).sum(axis=1) / images[0].img_arr.shape[0]  # (num_blocks,)
     return consistency
 
 def artifact_confidence(x: float) -> float:
@@ -84,6 +83,7 @@ def artifact_confidence(x: float) -> float:
     Returns:
         Confidence that the two images are the same, in [0, 1].
     """
-    if x >= 0.01:
+    config = Config()
+    if x >= float(config.get("artifact_block", "confidence_upper_threshold")):
         return 0.0
-    return 1.0 - (math.exp( x) - 1) / (math.exp(0.01) - 1)
+    return 1.0 - (math.exp( x) - 1) / (math.exp(float(config.get("artifact_block", "confidence_function_target"))) - 1)

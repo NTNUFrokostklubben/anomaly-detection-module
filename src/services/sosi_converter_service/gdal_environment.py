@@ -20,7 +20,7 @@ def setup_gdal_environment():
     """
 
     bundle_root = get_bundle_root()
-    print(f"DEBUG: bundle_root = {bundle_root}")
+    # print(f"DEBUG: bundle_root = {bundle_root}")
     if not bundle_root.exists():
         raise FileNotFoundError(f"GDAL bundle not found at {bundle_root}")
 

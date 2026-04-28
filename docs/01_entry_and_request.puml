@@ -1,0 +1,72 @@
+@startuml 01 - Entry and Request Handling
+
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+actor "gRPC Client" as Client
+participant "server.py" as Server
+participant "AnomalyServiceServicer" as Servicer
+participant "sosi_converter_service" as SOSI
+participant "io_tools" as IOTools
+participant "DbConnector" as DB
+
+== Startup ==
+
+Server -> Server : arg_checker()\nparse CLI args
+
+alt Server mode
+    Server -> Server : serve()\nstart gRPC on port 50052
+    Server -> Servicer : register servicer
+
+    == gRPC: DetectAnomalySet ==
+
+    Client -> Servicer : DetectAnomalySet(request)\n[sosi_paths, image_folder, project_name]
+
+    Servicer -> DB : get_project(project_name)
+    DB --> Servicer : project row or None
+
+    alt project not found
+        Servicer -> DB : add_project(metadata)
+    end
+
+    Servicer -> IOTools : convert_sosi_get_gdf(sosi_file)
+    IOTools -> SOSI : convert_sosi_to_gpkg(input, output)
+    SOSI -> SOSI : normalize encoding\n(BOM removal, ISO-8859-1)
+    SOSI -> SOSI : ogr2ogr SOSI → GeoPackage
+    SOSI --> IOTools : .gpkg file
+    IOTools -> IOTools : get_gdf_content(gpkg)\nload "polygons" layer
+    IOTools --> Servicer : sosi_gdf (GeoDataFrame)
+
+    opt water mask requested
+        Servicer -> IOTools : get_gdf_content(water_gpkg)
+        IOTools --> Servicer : water_gdf (GeoDataFrame)
+    end
+
+    Servicer -> Servicer : start_anomaly_analysis(...)\n[see 02_analysis_pipeline]
+
+    Servicer -> Servicer : map Image list → protobuf AnomalySet
+    Servicer --> Client : DetectAnomalySetResponse
+
+    == gRPC: Other RPCs ==
+
+    Client -> Servicer : GetProgress(request)
+    Servicer -> DB : get_project(name)
+    Servicer --> Client : ProgressResponse (processed / total)
+
+    Client -> Servicer : StopAnalysis(request)
+    Servicer -> Servicer : set stop_analysis_event\n(threading.Event)
+    Servicer --> Client : StopAnalysisResponse
+
+    Client -> Servicer : DescribeAnomalyProject(request)
+    Servicer -> DB : get_project(project_name)
+    Servicer --> Client : DescribeAnomalyProjectResponse\n[image_folder, sosi_path, last_index]
+
+else CLI mode
+    Server -> SOSI : convert_sosi_to_gpkg()
+    SOSI --> Server : .gpkg file
+    Server -> IOTools : get_gdf_content(gpkg)
+    IOTools --> Server : sosi_gdf
+    Server -> Server : start_anomaly_analysis(...)\n[see 02_analysis_pipeline]
+end
+
+@enduml
