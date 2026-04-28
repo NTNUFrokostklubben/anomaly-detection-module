@@ -95,6 +95,8 @@ Documentation for the latest main branch release will be available on gh-pages. 
 ```
 pdoc src/ !src.skavl_proto -o docs/_build
 ```
+https://ntnufrokostklubben.github.io/anomaly-detection-module/
+
 
 ## License
 Open-source: AGPL-3.0 (see LICENSE)
