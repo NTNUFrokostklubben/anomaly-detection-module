@@ -1,0 +1,61 @@
+@startuml 03 - Detection Modules
+
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+participant "Pipeline" as Pipeline
+participant "artifact_detector" as Artifact
+participant "line_artifact_detector" as Glare
+participant "color_diff" as ColorDiff
+participant "water_detector" as Water
+participant "find_overlap" as Overlap
+participant "DbConnector" as DB
+
+== Artifact Detection ==
+
+Pipeline -> Artifact : detect_artifact_consistency(images, increment)
+Artifact -> DB : get_artifact_data_line(prefix, line, shape)
+DB --> Artifact : stored color blobs (or empty)
+Artifact -> Artifact : calculate_average_color_block()\n[Numba JIT + prange]
+Artifact -> Artifact : stack all color data\ncompute per-block consistency
+Artifact -> Artifact : artifact_confidence(x) → [0,1]\nexponential decay
+Artifact -> DB : add_artifact_data(img, data, offset)
+Artifact --> Pipeline : confidence score
+
+== Glare Detection ==
+
+Pipeline -> Glare : detect_glare(img_arr, img_path)
+Glare -> Glare : convert to grayscale
+Glare -> Glare : _highpass()\nhorizontal + vertical axes
+Glare -> Glare : _score_profile()\nz-score consistency + magnitude
+Glare -> Glare : find_peaks() [scipy]\nfit valley / decay extents
+Glare --> Pipeline : [{type, centre, width_px,\n  peak_score, x1, y1, x2, y2}]
+
+== Color Difference ==
+
+Pipeline -> ColorDiff : check_difference_two_images(\n  gdf, img1_num, strip1, arr1,\n  img2_num, strip2, arr2)
+ColorDiff -> Overlap : get_overlap_pixel_images(gdf, img1, img2)
+Overlap -> Overlap : affine transform → pixel bounds
+Overlap --> ColorDiff : overlap bounding box
+ColorDiff -> ColorDiff : crop arr1 & arr2 to overlap\ncompute average color per image
+ColorDiff -> ColorDiff : set_confidence_level(diff)\nexponential decay → [0,1]
+ColorDiff --> Pipeline : avg1, avg2, diff, elapsed, confidence
+
+== Water Detection ==
+
+Pipeline -> Water : create_water_polygon_mask(\n  contour_gdf, sosi_df, img_name, gdal_ds)
+Water -> Water : find_image_row_img_name()\nlook up image polygon in GDF
+Water -> Water : build affine from SOSI\nor GDAL geotransform
+Water -> Water : geometry_mask() — rasterize polygon\n→ binary mask
+Water -> Water : apply_homography()\nOpenCV perspective correction
+Water --> Water : polygon_mask
+
+Pipeline -> Water : create_water_mask_hsl(\n  img_arr, increment, constraint_region)
+Water -> Water : [Numba JIT + prange]\nRGB → HSL hue + chroma\ndetect blue range (170°–290°)\ncoastline detection
+Water --> Water : hsl_mask
+
+Water -> Water : find_disagreement_ratio(polygon_mask, hsl_mask)\nXOR / total pixels
+Water -> Water : dissimilarity_confidence(x)\nexponential ramp → [0,1]
+Water --> Pipeline : confidence score
+
+@enduml
