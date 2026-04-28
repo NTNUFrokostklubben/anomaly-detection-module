@@ -40,7 +40,7 @@ jobs:
         run: ./env/bin/python -m pip install -e .
 
       - name: Build docs
-        run: ./env/bin/pdoc src/ '!src.skavl_proto' -o docs/_build
+        run: ./env/bin/python -m pdoc src/ '!src.skavl_proto' -o docs/_build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
