@@ -18,7 +18,7 @@ dependencies:
   - pyinstaller
   - grpcio
   - grpcio-tools
+  - pdoc
   - pip:
     - imagecodecs
     - tifffile
-    - pdoc

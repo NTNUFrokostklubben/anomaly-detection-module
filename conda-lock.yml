@@ -13,8 +13,8 @@
 version: 1
 metadata:
   content_hash:
-    linux-64: 2cf158e8154874b6cc9dc9b9eed6de428591013b88ace13aa625e32c46dab8ea
-    win-64: 2fa9f434717c06f8c6a42e234d6d1a55d4c1818e411eea1850b9a03d7fddff8c
+    linux-64: 75f0e4f5649291243e78a0b5844c0b104621c27473d9ed225dd5c54ff9cd0b3d
+    win-64: 82251a6a4c86a6d24419f056c58120af6e1b94fb55223dc98e1b9b8edd7e3092
   channels:
   - url: conda-forge
     used_env_vars: []
@@ -1154,30 +1154,30 @@ package:
   category: main
   optional: false
 - name: click
-  version: 8.3.2
+  version: 8.3.3
   manager: conda
   platform: linux-64
   dependencies:
     __unix: ''
     python: '>=3.10'
-  url: https://conda.anaconda.org/conda-forge/noarch/click-8.3.2-pyhc90fa1f_0.conda
+  url: https://conda.anaconda.org/conda-forge/noarch/click-8.3.3-pyhc90fa1f_0.conda
   hash:
-    md5: 4d18bc3af7cfcea97bd817164672a08c
-    sha256: 526d434cf5390310f40f34ea6ec4f0c225cdf1e419010e624d399b13b2059f0f
+    md5: 2266262ce8a425ecb6523d765f79b303
+    sha256: 37a5d8b10ea3516e2c42f870c9c351b9f7b31ff48c66d83490039f417e1e5228
   category: main
   optional: false
 - name: click
-  version: 8.3.2
+  version: 8.3.3
   manager: conda
   platform: win-64
   dependencies:
     __win: ''
     colorama: ''
     python: ''
-  url: https://conda.anaconda.org/conda-forge/noarch/click-8.3.2-pyh6dadd2b_0.conda
+  url: https://conda.anaconda.org/conda-forge/noarch/click-8.3.3-pyh6dadd2b_0.conda
   hash:
-    md5: 290d6b8ba791f99e068327e5d17e8462
-    sha256: e67e85d5837cf0b0151b58b449badb0a8c2018d209e05c28f1b0c079e6e93666
+    md5: 8f03c7a39b01ebc57b647f7b48bbeed9
+    sha256: acdcff82819e9c20719f8e6b6f69d72109ee056445a9995417dafe15a50d07fa
   category: main
   optional: false
 - name: click-default-group
@@ -3540,34 +3540,34 @@ package:
   category: main
   optional: false
 - name: lcms2
-  version: '2.18'
+  version: '2.19'
   manager: conda
   platform: linux-64
   dependencies:
     __glibc: '>=2.17,<3.0.a0'
     libgcc: '>=14'
-    libjpeg-turbo: '>=3.1.2,<4.0a0'
+    libjpeg-turbo: '>=3.1.4.1,<4.0a0'
     libtiff: '>=4.7.1,<4.8.0a0'
-  url: https://conda.anaconda.org/conda-forge/linux-64/lcms2-2.18-h0c24ade_0.conda
+  url: https://conda.anaconda.org/conda-forge/linux-64/lcms2-2.19-h0c24ade_0.conda
   hash:
-    md5: 6f2e2c8f58160147c4d1c6f4c14cbac4
-    sha256: 836ec4b895352110335b9fdcfa83a8dcdbe6c5fb7c06c4929130600caea91c0a
+    md5: f302dbf397ac82eaf9618575d0b5fe33
+    sha256: f1e982b63d505338ff7f9baee80a10360a025b7216deb5ab0fe1494d8ef3bebb
   category: main
   optional: false
 - name: lcms2
-  version: '2.18'
+  version: '2.19'
   manager: conda
   platform: win-64
   dependencies:
-    libjpeg-turbo: '>=3.1.2,<4.0a0'
+    libjpeg-turbo: '>=3.1.4.1,<4.0a0'
     libtiff: '>=4.7.1,<4.8.0a0'
     ucrt: '>=10.0.20348.0'
     vc: '>=14.3,<15'
     vc14_runtime: '>=14.44.35208'
-  url: https://conda.anaconda.org/conda-forge/win-64/lcms2-2.18-hf2c6c5f_0.conda
+  url: https://conda.anaconda.org/conda-forge/win-64/lcms2-2.19-hf2c6c5f_0.conda
   hash:
-    md5: b6c68d6b829b044cd17a41e0a8a23ca1
-    sha256: 7eeb18c5c86db146b62da66d9e8b0e753a52987f9134a494309588bbeceddf28
+    md5: cc37ca38374ac2a5dbe11f9abb10110f
+    sha256: 500b1907b06c5a1bd43d07203b3d58219a3c31b53e1f20c9c79e97d8a14077fc
   category: main
   optional: false
 - name: ld_impl_linux-64
@@ -6479,6 +6479,30 @@ package:
     sha256: 967841d300598b17f76ba812e7dae642176692ed2a6735467b93c2b2debe35c1
   category: main
   optional: false
+- name: markdown2
+  version: 2.5.5
+  manager: conda
+  platform: linux-64
+  dependencies:
+    python: ''
+  url: https://conda.anaconda.org/conda-forge/noarch/markdown2-2.5.5-pyhcf101f3_0.conda
+  hash:
+    md5: a73128e4e39b94a07588f182c8fdefc7
+    sha256: 4d8d4e8dccb23d60592b465f165613469da8091061c46949ba87bd5d4dad38ba
+  category: main
+  optional: false
+- name: markdown2
+  version: 2.5.5
+  manager: conda
+  platform: win-64
+  dependencies:
+    python: ''
+  url: https://conda.anaconda.org/conda-forge/noarch/markdown2-2.5.5-pyhcf101f3_0.conda
+  hash:
+    md5: a73128e4e39b94a07588f182c8fdefc7
+    sha256: 4d8d4e8dccb23d60592b465f165613469da8091061c46949ba87bd5d4dad38ba
+  category: main
+  optional: false
 - name: markupsafe
   version: 3.0.3
   manager: conda
@@ -7258,6 +7282,38 @@ package:
     sha256: 3e9e02174edf02cb4bcdd75668ad7b74b8061791a3bc8bdb8a52ae336761ba3e
   category: main
   optional: false
+- name: pdoc
+  version: 16.0.0
+  manager: conda
+  platform: linux-64
+  dependencies:
+    jinja2: '>=2.11.0'
+    markdown2: '>=2.5.4'
+    markupsafe: '>=1.1.1'
+    pygments: '>=2.12.0'
+    python: '>=3.10'
+  url: https://conda.anaconda.org/conda-forge/noarch/pdoc-16.0.0-pyhd8ed1ab_0.conda
+  hash:
+    md5: d17d8a8f3ae75041ddb352dafce37031
+    sha256: 2d8f4a83347a9b1e05f8c66d359a155b1d53f26b463800bac4034a9007336307
+  category: main
+  optional: false
+- name: pdoc
+  version: 16.0.0
+  manager: conda
+  platform: win-64
+  dependencies:
+    jinja2: '>=2.11.0'
+    markdown2: '>=2.5.4'
+    markupsafe: '>=1.1.1'
+    pygments: '>=2.12.0'
+    python: '>=3.10'
+  url: https://conda.anaconda.org/conda-forge/noarch/pdoc-16.0.0-pyhd8ed1ab_0.conda
+  hash:
+    md5: d17d8a8f3ae75041ddb352dafce37031
+    sha256: 2d8f4a83347a9b1e05f8c66d359a155b1d53f26b463800bac4034a9007336307
+  category: main
+  optional: false
 - name: pefile
   version: 2023.2.7
   manager: conda
@@ -8022,6 +8078,7 @@ package:
     libzlib: '>=1.3.1,<2.0a0'
     ncurses: '>=6.5,<7.0a0'
     openssl: '>=3.5.5,<4.0a0'
+    pip: ''
     readline: '>=8.3,<9.0a0'
     tk: '>=8.6.13,<8.7.0a0'
     tzdata: ''
@@ -8043,6 +8100,7 @@ package:
     libsqlite: '>=3.51.2,<4.0a0'
     libzlib: '>=1.3.1,<2.0a0'
     openssl: '>=3.5.5,<4.0a0'
+    pip: ''
     tk: '>=8.6.13,<8.7.0a0'
     tzdata: ''
     ucrt: '>=10.0.20348.0'
@@ -9728,7 +9786,7 @@ package:
   platform: linux-64
   dependencies:
     libgcc-ng: '>=12'
-  url: https://conda.anaconda.org/conda-forge/linux-64/x264-1!164.3095-h166bdaf_2.tar.bz2
+  url: https://conda.anaconda.org/conda-forge/linux-64/x264-1%21164.3095-h166bdaf_2.tar.bz2
   hash:
     md5: 6c99772d483f566d59e25037fea2c4b1
     sha256: 175315eb3d6ea1f64a6ce470be00fa2ee59980108f246d3072ab8b977cb048a5
@@ -9741,7 +9799,7 @@ package:
   dependencies:
     vc: '>=14.1,<15'
     vs2015_runtime: '>=14.16.27033'
-  url: https://conda.anaconda.org/conda-forge/win-64/x264-1!164.3095-h8ffe710_2.tar.bz2
+  url: https://conda.anaconda.org/conda-forge/win-64/x264-1%21164.3095-h8ffe710_2.tar.bz2
   hash:
     md5: 19e39905184459760ccb8cf5c75f148b
     sha256: 97166b318f8c68ffe4d50b2f4bd36e415219eeaef233e7d41c54244dc6108249
