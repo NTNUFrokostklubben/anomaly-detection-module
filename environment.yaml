@@ -21,3 +21,4 @@ dependencies:
   - pip:
     - imagecodecs
     - tifffile
+    - pdoc

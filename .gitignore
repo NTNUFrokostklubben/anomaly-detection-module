@@ -41,3 +41,6 @@ database.db
 database.db*
 logs
 *.log
+
+# Docs
+docs/
