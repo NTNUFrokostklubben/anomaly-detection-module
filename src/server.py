@@ -34,6 +34,7 @@ def arg_checker():
 
         server_parser = subparsers.add_parser("server", help="Run as grpc server")
         server_parser.add_argument("-p","--port", help="Port to start server with")
+        server_parser.add_argument("-l","--local",action="store_true", help="Determines if all or only local connections should be accepted.")
 
         cli_parser = subparsers.add_parser("cli", help="Start a single run cli version that runs once based on argument paths")
         cli_parser.add_argument("-i","--sosi-input", required=True, help="Coverage polygon sosi file")
@@ -58,9 +59,16 @@ def serve(args):
     db.init()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
     anomaly_pb2_grpc.add_AnomalyDetectorServiceServicer_to_server(AnomalyServiceServicer(), server)
-    server.add_insecure_port(f"0.0.0.0:{server_port}")
+
+    # Accepts connections only locally when running locally.
+    server_ip = ""
+    if getattr(args, "local", False):
+        server_ip = "127.0.0.1"
+    else:
+        server_ip = "0.0.0.0"
+    server.add_insecure_port(f"{server_ip}:{server_port}")
     server.start()
-    print(f"gRPC server listening on 0.0.0.0:{server_port}")
+    print(f"gRPC server listening on {server_ip}:{server_port}")
     try:
         while True:
             time.sleep(3600)
