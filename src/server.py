@@ -11,6 +11,7 @@ from utils import DbConnector
 
 import argparse
 
+
 def arg_checker():
     """
     Checks arguments and starts the appropriate mode.
@@ -33,13 +34,18 @@ def arg_checker():
         subparsers = parser.add_subparsers(dest="mode")
 
         server_parser = subparsers.add_parser("server", help="Run as grpc server")
-        server_parser.add_argument("-p","--port", help="Port to start server with")
-        server_parser.add_argument("-l","--local",action="store_true", help="Determines if all or only local connections should be accepted.")
+        server_parser.add_argument("-p", "--port", help="Port to start server with")
+        server_parser.add_argument("-l", "--local", action="store_true",
+                                   help="""Determines if all or only local connections should be accepted. 
+                                   If this argument is present, the servers IP will be 127.0.0.1, 
+                                   if this argument is omitted, the ip will be set to 0.0.0.0 meaning accept all connections""")
 
-        cli_parser = subparsers.add_parser("cli", help="Start a single run cli version that runs once based on argument paths")
-        cli_parser.add_argument("-i","--sosi-input", required=True, help="Coverage polygon sosi file")
-        cli_parser.add_argument("-p","--image-path", required=True, help="Path containing aerial images related to coverage SOSI")
-        cli_parser.add_argument("-w","--water-input", help="Water polygon file")
+        cli_parser = subparsers.add_parser("cli",
+                                           help="Start a single run cli version that runs once based on argument paths")
+        cli_parser.add_argument("-i", "--sosi-input", required=True, help="Coverage polygon sosi file")
+        cli_parser.add_argument("-p", "--image-path", required=True,
+                                help="Path containing aerial images related to coverage SOSI")
+        cli_parser.add_argument("-w", "--water-input", help="Water polygon file")
 
         args = parser.parse_args()
 
@@ -49,6 +55,7 @@ def arg_checker():
             serve(args)
     finally:
         listener.stop()
+
 
 def serve(args):
     """
