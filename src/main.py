@@ -6,17 +6,15 @@ from services.sosi_converter_service import convert_sosi_to_gpkg
 
 def cli_run(args):
 
-    if args.sosi_input == None:
+    if args.sosi_input is None:
         print("Missing Sosi Input path")
         return
-    if args.image_path == None:
+    if args.image_path is None:
         print("Missing image path")
         return
     sosi_input = args.sosi_input
     water_input = args.water_input
     image_path = args.image_path
-
-    # TODO: this should be moved and received from the user in SKAVL
 
     # Convert sosi to gpkg
     input_file = Path(sosi_input)
