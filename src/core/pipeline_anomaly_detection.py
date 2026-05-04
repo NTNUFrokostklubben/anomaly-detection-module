@@ -163,7 +163,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         db = DbConnector()
         anomaly_sets = []
         config = Config()
-        log = False
+        log = True
         with ThreadPoolExecutor(max_workers=4) as executor:
             for i in range(image_count - 1):
                 # Stops analysis if the stop_analysis_event has been triggered. This is cross-thread
