@@ -119,7 +119,7 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
         image_id (str): The image id to add the analysis result to the database
     """
     try:
-        avg1, avg2, diff, t, confidence_level = check_difference_two_images(
+        avg1, avg2, diff, confidence_level = check_difference_two_images(
             gdf,
             int(gdf.iloc[i]["bildenummer"]),
             int(gdf.iloc[i]["stripenummer"]),
@@ -132,15 +132,6 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
         db.add_analysis(image_id, AnalysisType.COLOR_AVERAGE, confidence_level)
         if log:
             logger.info("Color difference confidence level: %s", confidence_level, extra={"analysis": "color_difference", "img_id": image_id})
-        else:
-            print("----------- Color Difference -------------")
-            print(f"Comparing image {gdf.iloc[i]['bildenummer']} and image {gdf.iloc[i + 1]['bildenummer']}")
-            print(f"Image {gdf.iloc[i]['bildenummer']} avg: {avg1}")
-            print(f"Image {gdf.iloc[i + 1]['bildenummer']} avg: {avg2}")
-            print(f"Difference: {diff}")
-            print(f"Difference normalised: {diff / 255}")
-            print(f"Confidence level: {confidence_level}")
-            print(f"Time analysis: {t:.6f}s\n")
     except Exception as e:
         logger.error("Color difference analysis failed, excpt_msg:%s",e,  extra={"analysis": "color_difference", "img_id": image_id})
 
