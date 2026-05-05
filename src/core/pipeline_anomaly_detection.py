@@ -32,20 +32,20 @@ def start_line_artefact_detection_analysis(arr: np.ndarray, img_path: Path, log:
         db.add_analysis(img_path.name, AnalysisType.ARTIFACT_LINE,confidence_result)
         if log:
             for ln in all_lines:
-                logger.info("glare line found:  %s  centre=%s  width=%spx  score=%s",ln['type'],ln['centre'], ln['width_px'], ln['peak_score'],
-                            extra={"analysis": "glare", "img_id": img_path.name})
+                logger.info("Line artefact found:  %s  centre=%s  width=%spx  score=%s",ln['type'],ln['centre'], ln['width_px'], ln['peak_score'],
+                            extra={"analysis": "line_artefact", "img_id": img_path.name})
         else:
             for ln in all_lines:
                 print(f"  {ln['type']}  centre={ln['centre']}  width={ln['width_px']}px  score={ln['peak_score']:.3f}")
             t_1 = time.monotonic()
-            print(f"Total time for line artifact detection: {(t_1 - t_0):.2f}s")
+            print(f"Total time for line artefact detection: {(t_1 - t_0):.2f}s")
     except Exception as e:
-        logger.error("Glare detection failed, excpt_msg:%s",e,  extra={"analysis": "glare", "img_id": img_path.name})
+        logger.error("Line artefact detection failed, excpt_msg:%s",e,  extra={"analysis": "line_artefact", "img_id": img_path.name})
 
 
 def start_artifact_detection_analysis(image, increment, log: bool):
     """
-    Start artifact detection analysis on a single image, using the line artifact data from the database to compare against.
+    Start artefact detection analysis on a single image, using the line artefact data from the database to compare against.
     :param image: the image to analyse, must contain img_arr and img_id
     :param increment: the size of the block of pixels to compare.
     :param log: whether to log or not
@@ -70,7 +70,7 @@ def start_artifact_detection_analysis(image, increment, log: bool):
         else:
             logger.info("Not enough data for artifact analysis, skipping.", extra={"analysis": "artifact", "img_id": image.img_id})
     except Exception as e:
-        logger.error("Artifact detection failed, excpt_msg:%s",e,  extra={"analysis": "artifact", "img_id": image.img_id})
+        logger.error("Artefact detection failed, excpt_msg:%s",e,  extra={"analysis": "artifact", "img_id": image.img_id})
 
 def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, water_gdf: gpd.GeoDataFrame,  log: bool):
     """

@@ -5,7 +5,7 @@ skinparam responseMessageBelowArrow true
 
 participant "Pipeline" as Pipeline
 participant "artifact_detector" as Artifact
-participant "line_artifact_detector" as Glare
+participant "line_artifact_detector" as LineArtefact
 participant "color_diff" as ColorDiff
 participant "water_detector" as Water
 participant "find_overlap" as Overlap
@@ -22,14 +22,22 @@ Artifact -> Artifact : artifact_confidence(x) → [0,1]\nexponential decay
 Artifact -> DB : add_artifact_data(img, data, offset)
 Artifact --> Pipeline : confidence score
 
-== Glare Detection ==
+== Line Artifact Detection ==
 
-Pipeline -> Glare : detect_glare(img_arr, img_path)
-Glare -> Glare : convert to grayscale
-Glare -> Glare : _highpass()\nhorizontal + vertical axes
-Glare -> Glare : _score_profile()\nz-score consistency + magnitude
-Glare -> Glare : find_peaks() [scipy]\nfit valley / decay extents
-Glare --> Pipeline : [{type, centre, width_px,\n  peak_score, x1, y1, x2, y2}]
+Pipeline -> LineArtefact : detect_line_artefact(img_arr)
+LineArtefact -> LineArtefact : _load_gray_from_array(img_arr)\n BT601 -> float32 grayscale
+LineArtefact -> LineArtefact : _highpass(gray, sigma, axis='col')\n Downsample -> Gaussian blur + subtract
+LineArtefact -> LineArtefact : _highpass(gray, sigma, axis='row')\n Downsample -> Gaussian blur + subtract
+LineArtefact -> LineArtefact : _score_profile(residual, axis='col', n_bands)\n band z-scores -> Consistency * Magnitude
+LineArtefact -> LineArtefact : _score_profile(residual, axis='row', n_bands)\n band z-scores -> Consistency * Magnitude
+LineArtefact -> Scipy : find_peaks(score, distance, prominence)\n[col axis]
+Scipy --> LineArtefact : col peak indices
+LineArtefact -> Scipy : find_peaks(score, distance, prominence)\n[row axis]
+Scipy --> LineArtefact : row peak indices
+LineArtefact -> LineArtefact : _valley_boundary() + _decay_boundary()\nper peak -> intersect -> width + centre
+LineArtefact -> LineArtefact : compute_confidence(all_lines)\nrank-decayed sum -> 1 − exp(−k·sum)
+LineArtefact --> Pipeline : (all_lines, confidence)\n[{type, centre, width_px, peak_score, x1,y1,x2,y2}], float
+LineArtefact --> Pipeline : [{type, centre, width_px,\n  peak_score, x1, y1, x2, y2}]
 
 == Color Difference ==
 
