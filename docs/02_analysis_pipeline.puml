@@ -30,9 +30,9 @@ loop for each consecutive image pair (img_i, img_i+1)
     par Artifact detection
         Pipeline -> Artifact : detect_artifact_consistency(images, increment)
         Artifact --> Pipeline : confidence score
-    else Glare detection
-        Pipeline -> Glare : detect_glare(img_arr, img_path)
-        Glare --> Pipeline : list of glare regions
+    else Line Artefact detection
+        Pipeline -> LineArtefact : detect_line_artefact(img_arr)
+        LineArtefact --> Pipeline : list of line artefact regions, confidence score
     else Color difference
         Pipeline -> ColorDiff : check_difference_two_images(...)
         ColorDiff --> Pipeline : avg1, avg2, diff, confidence
