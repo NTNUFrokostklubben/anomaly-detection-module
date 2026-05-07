@@ -27,6 +27,147 @@ HUE_BLUE_OFFSET: float = 240.0
 HUE_FULL_CIRCLE: float = 360.0
 
 
+def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataFrame, img_name: str, ds: RasterMeta | Any) -> np.ndarray:
+    """
+    Builds a water mask for the given image by aligning water contours from a GeoPackage
+    to the raster extent, correcting for Y-axis flip in the SOSI boundary polygon.
+
+    :param sosi_df: the GeoDataFrame containing the image polygon.
+    :param contour_gdf: the GeoDataFrame containing the contour polygons.
+    :param img_name: Image name used to look up the corresponding SOSI boundary row.
+    :param ds: GDAL dataset of the raster image, or a picklable ``RasterMeta`` snapshot.
+    :return: Boolean mask array of shape (height, width), True where water is present.
+    """
+
+    width, height = ds.width, ds.height
+    raster_crs = ds.projection
+
+    if raster_crs:
+        contour_gdf = contour_gdf.to_crs(raster_crs)
+        sosi_df = sosi_df.to_crs(raster_crs)
+        affine = Affine.from_gdal(*ds.geotransform)
+    else:
+        row = fo.find_image_row_img_name(sosi_df, img_name)
+        affine = _affine_from_sosi_polygon(row['geometry'], width, height)
+
+    inv_affine = ~affine
+
+    if raster_crs:
+        row = fo.find_image_row_img_name(sosi_df, img_name)
+    overlap = contour_gdf['geometry'].intersects(row['geometry'])
+    if not overlap.any():
+        return np.zeros((height, width), dtype=np.uint8)
+
+    sosi_corners_flat = [
+        pt
+        for ring in [list(geom.exterior.coords)[:-1] for geom in row['geometry'].geoms]
+        for pt in ring
+    ]
+    sosi_px = [(geo_to_pixel(x, y, inv_affine), (x, y)) for x, y in sosi_corners_flat]
+
+    image_corners_px = np.float32([[0, 0], [width, 0], [width, height], [0, height]])
+    src_pts = np.float32([
+        min(sosi_px, key=lambda p, _ic=ic: np.linalg.norm(np.array(p[0]) - _ic))[0]
+        for ic in image_corners_px
+    ])
+
+    sosi_ul, sosi_ur, sosi_lr, sosi_ll = src_pts
+    raster_ul = np.array([0, 0])
+    raster_ur = np.array([width, 0])
+    raster_lr = np.array([width, height])
+    raster_ll = np.array([0, height])
+
+    # Flips the polygon along the x-axis due to suspected mirroring of the polygon from sosi geopackage.
+    dst_pts = np.float32([
+        sosi_ul + flip_y(raster_ll - sosi_ll),
+        sosi_ur + flip_y(raster_lr - sosi_lr),
+        sosi_lr + flip_y(raster_ur - sosi_ur),
+        sosi_ll + flip_y(raster_ul - sosi_ul),
+    ])
+
+    transform = cv2.getPerspectiveTransform(src_pts, dst_pts)
+
+    corrected_geoms = contour_gdf[overlap]['geometry'].apply(lambda g: apply_homography(g, transform, affine).buffer(0))
+    merged = unary_union(corrected_geoms)
+
+    return geometry_mask(
+        [merged],
+        transform=affine,
+        invert=True,
+        out_shape=(height, width)
+    )
+
+
+
+def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int, constraint_region: np.ndarray[tuple[bool]]) -> np.ndarray:
+    """
+    Create a mask outlining the water on an image using a jumping block algorithm. Optionally allows for looking
+     only within a constrained region of the full image.
+
+    :param data: the image array
+    :param increment: the amount the block should jump. Not max pixels, the size of the square is increment squared.
+    :param constraint_region: the region to not run the algorithm in.
+    :return: a mask outlining water for the corresponding image.
+    """
+    config = Config()
+    hue_min = float(config.get("water_detector", "water_hue_min"))
+    hue_max = float(config.get("water_detector", "water_hue_max"))
+    chroma_min = float(config.get("water_detector", "water_chroma_min"))
+    return _create_water_mask_hsl_core(data, increment, constraint_region, hue_min, hue_max, chroma_min)
+
+
+
+@njit(parallel=True, cache=True)
+def _create_water_mask_hsl_core(data: np.ndarray[tuple[int, int, int]], increment: int, constraint_region: np.ndarray[tuple[bool]], hue_min: float, hue_max: float, chroma_min: float) -> np.ndarray:
+    """
+    Core functionality of `create_water_mask_hsl`, separated out to allow for JIT compilation with numba.
+    Detects water blocks based on mean hue and chroma, with an optional constraint region to limit the search area.
+    Uses a jumping block approach for efficiency, and refines block edges by checking for blue dominance in columns.
+
+    :param data: The image array to mask
+    :param increment: the number of pixels to jump for each block. The block size is increment squared.
+    :param constraint_region: the region to not run the algorithm in.
+    :param hue_min: What hue is considered the lower bound of water.
+    :param hue_max: What hue is considered the upper bound of water.
+    :param chroma_min: how much chroma water should at least have.
+    :return: the finished mask
+    """
+    y_shape = data.shape[1]
+    x_shape = data.shape[2]
+
+    if constraint_region is None:
+        constraint_region = np.ones((data.shape[1], data.shape[2]), dtype=np.bool_)
+
+    mask = np.zeros((y_shape, x_shape), dtype=np.bool_)
+
+    y_blocks = (y_shape + increment - 1) // increment
+    x_blocks = (x_shape + increment - 1) // increment
+
+    for by in prange(y_blocks):
+        previous = False
+        for bx in range(x_blocks):
+            y_start = by * increment
+            x_start = bx * increment
+            y_end = min(y_start + increment, y_shape)
+            x_end = min(x_start + increment, x_shape)
+
+            if not _block_has_mask(constraint_region, y_start, y_end, x_start, x_end):
+                previous = False
+                continue
+
+            r_mean, g_mean, b_mean = block_mean_rgb(data, y_start, y_end, x_start, x_end, constraint_region)
+            h, chroma = _rgb_to_hue(r_mean, g_mean, b_mean)
+
+            if hue_min < h < hue_max and chroma > chroma_min:
+                if not previous:
+                    x_start = _find_coast_x(data, constraint_region, y_start, y_end, x_start, x_end)
+                _fill_block(mask, constraint_region, y_start, y_end, x_start, x_end)
+                previous = True
+            else:
+                previous = False
+
+    return mask
+
 
 
 @njit(cache=True)
@@ -152,145 +293,6 @@ def _fill_block(mask: np.ndarray, polygon_mask: np.ndarray, y_start: int, y_end:
                 mask[y, x] = True
 
 
-def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int, constraint_region: np.ndarray[tuple[bool]]) -> np.ndarray:
-    """
-    Create a mask outlining the water on an image using a jumping block algorithm. Optionally allows for looking
-     only within a constrained region of the full image.
-
-    :param data: the image array
-    :param increment: the amount the block should jump. Not max pixels, the size of the square is increment squared.
-    :param constraint_region: the region to not run the algorithm in.
-    :return: a mask outlining water for the corresponding image.
-    """
-    config = Config()
-    hue_min = float(config.get("water_detector", "water_hue_min"))
-    hue_max = float(config.get("water_detector", "water_hue_max"))
-    chroma_min = float(config.get("water_detector", "water_chroma_min"))
-    return _create_water_mask_hsl_core(data, increment, constraint_region, hue_min, hue_max, chroma_min)
-
-
-@njit(parallel=True, cache=True)
-def _create_water_mask_hsl_core(data: np.ndarray[tuple[int, int, int]], increment: int, constraint_region: np.ndarray[tuple[bool]], hue_min: float, hue_max: float, chroma_min: float) -> np.ndarray:
-    y_shape = data.shape[1]
-    x_shape = data.shape[2]
-
-    if constraint_region is None:
-        constraint_region = np.ones((data.shape[1], data.shape[2]), dtype=np.bool_)
-
-    mask = np.zeros((y_shape, x_shape), dtype=np.bool_)
-
-    y_blocks = (y_shape + increment - 1) // increment
-    x_blocks = (x_shape + increment - 1) // increment
-
-    for by in prange(y_blocks):
-        previous = False
-        for bx in range(x_blocks):
-            y_start = by * increment
-            x_start = bx * increment
-            y_end = min(y_start + increment, y_shape)
-            x_end = min(x_start + increment, x_shape)
-
-            if not _block_has_mask(constraint_region, y_start, y_end, x_start, x_end):
-                previous = False
-                continue
-
-            r_mean, g_mean, b_mean = block_mean_rgb(data, y_start, y_end, x_start, x_end, constraint_region)
-            h, chroma = _rgb_to_hue(r_mean, g_mean, b_mean)
-
-            if hue_min < h < hue_max and chroma > chroma_min:
-                if not previous:
-                    x_start = _find_coast_x(data, constraint_region, y_start, y_end, x_start, x_end)
-                _fill_block(mask, constraint_region, y_start, y_end, x_start, x_end)
-                previous = True
-            else:
-                previous = False
-
-    return mask
-
-
-@cuda.jit
-def _hsl_compute_blocks_kernel(data: np.ndarray[tuple[int, int, int]], mask: np.ndarray[tuple[bool, bool]], increment: int, hue_min: int, hue_max: int) -> None:
-    """
-    Helper function for computing the blocks in the jumping block algorithm for CUDA processing of the water mask.
-
-    :param data: the image array
-    :param mask: The mask to compute the blocks in. this is the return value.
-    :param increment: the amount the block jumps. Not max pixels, the size of the square is increment squared.
-
-    """
-    bx, by = cuda.grid(2)
-    y_shape = data.shape[1]
-    x_shape = data.shape[2]
-
-    y_blocks = (y_shape + increment - 1) // increment
-    x_blocks = (x_shape + increment - 1) // increment
-
-    if by >= y_blocks or bx >= x_blocks:
-        return
-
-    y_start = by * increment
-    x_start = bx * increment
-    y_end = min(y_start + increment, y_shape)
-    x_end = min(x_start + increment, x_shape)
-
-    r_sum = 0.0
-    g_sum = 0.0
-    b_sum = 0.0
-    count = (y_end - y_start) * (x_end - x_start)
-
-    for y in range(y_start, y_end):
-        for x in range(x_start, x_end):
-            r_sum += data[0, y, x]
-            g_sum += data[1, y, x]
-            b_sum += data[2, y, x]
-
-    r_mean = (r_sum / count) / RGB_MAX
-    g_mean = (g_sum / count) / RGB_MAX
-    b_mean = (b_sum / count) / RGB_MAX
-
-    max_c = max(r_mean, g_mean, b_mean)
-    min_c = min(r_mean, g_mean, b_mean)
-    delta = max_c - min_c
-
-    h = 0.0
-    if delta > 0:
-        if max_c == r_mean:
-            h = (HUE_SECTOR_DEGREES * ((g_mean - b_mean) / delta)) % HUE_FULL_CIRCLE
-        elif max_c == g_mean:
-            h = HUE_SECTOR_DEGREES * ((b_mean - r_mean) / delta) + HUE_GREEN_OFFSET
-        else:
-            h = HUE_SECTOR_DEGREES * ((r_mean - g_mean) / delta) + HUE_BLUE_OFFSET
-
-    if hue_min < h < hue_max:
-        for y in range(y_start, y_end):
-            for x in range(x_start, x_end):
-                mask[y, x] = True
-
-def create_water_mask_hsl_cuda(data: ndarray[tuple[int, int, int]], increment: int) -> ndarray[tuple[bool]]:
-    """
-    Computes the water mask in HSL using cuda cores, slower than CPU processing if processor is of similar quality as
-     GPU.
-
-    :param data: the image array
-    :param increment: The size of the square to compute water detection on. Not total pixels.
-    :return: the mask outlining water.
-    """
-    y_shape = data.shape[1]
-    x_shape = data.shape[2]
-    y_blocks = (y_shape + increment - 1) // increment
-    x_blocks = (x_shape + increment - 1) // increment
-
-    data_gpu = cuda.to_device(data)
-    mask_gpu = cuda.to_device(np.zeros((y_shape, x_shape), dtype=np.bool_))
-    config = Config()
-    CUDA_THREADS_PER_BLOCK = int(config.get("water_detector","cuda_threads_per_block" ))
-    hue_min = int(config.get("water_detector","water_hue_min"))
-    hue_max = int(config.get("water_detector","water_hue_max"))
-    threads_2d = (CUDA_THREADS_PER_BLOCK, CUDA_THREADS_PER_BLOCK)
-    blocks_2d = (math.ceil(x_blocks / CUDA_THREADS_PER_BLOCK), math.ceil(y_blocks / CUDA_THREADS_PER_BLOCK))
-    _hsl_compute_blocks_kernel[blocks_2d, threads_2d](data_gpu, mask_gpu, increment, hue_min, hue_max)
-
-    return mask_gpu.copy_to_host()
 
 
 def clean_water_mask(mask_array: ndarray[tuple[int, int]], max_size:int) -> ndarray[tuple[int, int]]:
@@ -312,23 +314,6 @@ def clean_water_mask(mask_array: ndarray[tuple[int, int]], max_size:int) -> ndar
     keep = np.zeros(n_labels, dtype=bool)
     keep[1:] = stats[1:, cv2.CC_STAT_AREA] > max_size
     return keep[labels]
-
-
-
-
-def detect_holes(mask: ndarray[tuple[bool, bool]]) -> ndarray[tuple[int, int]]:
-    """
-    Detects holes in masks. Optimized for large images like tif.
-
-    :param mask: the mask array to detect holes in.
-    """
-    max_size = Config().get("water_detector", "min_hole_size")
-    filled_mask = ndimage.binary_fill_holes(mask)
-    holes = filled_mask ^ mask
-    cleaned = morphology.remove_small_objects(holes, max_size=max_size)
-    labeled_holes, _ = ndimage.label(cleaned)
-    return labeled_holes
-
 
 
 
@@ -363,77 +348,6 @@ def _affine_from_sosi_polygon(geom, width: int, height: int) -> Affine:
     f = tl[1]
 
     return Affine(a, b, c, d, e, f)
-
-
-def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataFrame, img_name: str, ds: RasterMeta | Any) -> np.ndarray:
-    """
-    Builds a water mask for the given image by aligning water contours from a GeoPackage
-    to the raster extent, correcting for Y-axis flip in the SOSI boundary polygon.
-
-    :param sosi_df: the GeoDataFrame containing the image polygon.
-    :param contour_gdf: the GeoDataFrame containing the contour polygons.
-    :param img_name: Image name used to look up the corresponding SOSI boundary row.
-    :param ds: GDAL dataset of the raster image, or a picklable ``RasterMeta`` snapshot.
-    :return: Boolean mask array of shape (height, width), True where water is present.
-    """
-
-    width, height = ds.width, ds.height
-    raster_crs = ds.projection
-
-    if raster_crs:
-        contour_gdf = contour_gdf.to_crs(raster_crs)
-        sosi_df = sosi_df.to_crs(raster_crs)
-        affine = Affine.from_gdal(*ds.geotransform)
-    else:
-        row = fo.find_image_row_img_name(sosi_df, img_name)
-        affine = _affine_from_sosi_polygon(row['geometry'], width, height)
-
-    inv_affine = ~affine
-
-    if raster_crs:
-        row = fo.find_image_row_img_name(sosi_df, img_name)
-    overlap = contour_gdf['geometry'].intersects(row['geometry'])
-    if not overlap.any():
-        return np.zeros((height, width), dtype=np.uint8)
-
-    sosi_corners_flat = [
-        pt
-        for ring in [list(geom.exterior.coords)[:-1] for geom in row['geometry'].geoms]
-        for pt in ring
-    ]
-    sosi_px = [(geo_to_pixel(x, y, inv_affine), (x, y)) for x, y in sosi_corners_flat]
-
-    image_corners_px = np.float32([[0, 0], [width, 0], [width, height], [0, height]])
-    src_pts = np.float32([
-        min(sosi_px, key=lambda p, _ic=ic: np.linalg.norm(np.array(p[0]) - _ic))[0]
-        for ic in image_corners_px
-    ])
-
-    sosi_ul, sosi_ur, sosi_lr, sosi_ll = src_pts
-    raster_ul = np.array([0, 0])
-    raster_ur = np.array([width, 0])
-    raster_lr = np.array([width, height])
-    raster_ll = np.array([0, height])
-
-    # Flips the polygon along the x-axis due to suspected mirroring of the polygon from sosi geopackage.
-    dst_pts = np.float32([
-        sosi_ul + flip_y(raster_ll - sosi_ll),
-        sosi_ur + flip_y(raster_lr - sosi_lr),
-        sosi_lr + flip_y(raster_ur - sosi_ur),
-        sosi_ll + flip_y(raster_ul - sosi_ul),
-    ])
-
-    transform = cv2.getPerspectiveTransform(src_pts, dst_pts)
-
-    corrected_geoms = contour_gdf[overlap]['geometry'].apply(lambda g: apply_homography(g, transform, affine).buffer(0))
-    merged = unary_union(corrected_geoms)
-
-    return geometry_mask(
-        [merged],
-        transform=affine,
-        invert=True,
-        out_shape=(height, width)
-    )
 
 
 def geo_to_pixel(x:float, y:float, inv_affine: Affine) -> list[Any]:
@@ -480,24 +394,6 @@ def apply_homography(geom: Polygon | MultiPolygon, transform: np.ndarray, affine
         return MultiPolygon([transform_polygon(p) for p in geom.geoms])
     return transform_polygon(geom)
 
-
-def refine_mask_hsl(img_data: ndarray, polygon_mask: ndarray[tuple[int, int]], increment: int) -> ndarray:
-    """
-    Refines a polygon-based water mask using HSL-based water detection.
-    Only keeps pixels where both the polygon mask and HSL detection agree.
-
-    :param img_data: ndarray - image in shape (bands, H, W)
-    :param polygon_mask: ndarray - binary mask from polygon, shape (H, W)
-    :param increment: int - block size for HSL algorithm
-    :return: refined mask shape (H, W)
-    """
-    # Run HSL water detection on the full image
-    refined_mask = create_water_mask_hsl(img_data, increment, polygon_mask)
-
-    # Only keep pixels where both masks agree
-
-
-    return  refined_mask.astype(np.uint8)
 
 
 
@@ -563,4 +459,132 @@ def crop_arrays_binary(array: ndarray, other_array: ndarray) -> tuple[ndarray, n
         other_array = other_array[r_min:r_max, c_min:c_max]
 
     return array, other_array
+
+
+
+
+# Below here is unused code that may be useful for future improvements to the water mask algorithm,
+# such as hole detection and refinement of the polygon mask with HSL detection.
+# Also includes CUDA copy of the water mask creation code. From testing this code is half as fast as CPU bound code.
+# However, we believe CUDA still has a place in this code base and it's rather our implementation that is the issue,
+# not the use of CUDA itself.
+
+# def detect_holes(mask: ndarray[tuple[bool, bool]]) -> ndarray[tuple[int, int]]:
+#     """
+#     Detects holes in masks. Optimized for large images like tif.
+#
+#     :param mask: the mask array to detect holes in.
+#     """
+#     max_size = Config().get("water_detector", "min_hole_size")
+#     filled_mask = ndimage.binary_fill_holes(mask)
+#     holes = filled_mask ^ mask
+#     cleaned = morphology.remove_small_objects(holes, max_size=max_size)
+#     labeled_holes, _ = ndimage.label(cleaned)
+#     return labeled_holes
+#
+
+#
+# def refine_mask_hsl(img_data: ndarray, polygon_mask: ndarray[tuple[int, int]], increment: int) -> ndarray:
+#     """
+#     Refines a polygon-based water mask using HSL-based water detection.
+#     Only keeps pixels where both the polygon mask and HSL detection agree.
+#
+#     :param img_data: ndarray - image in shape (bands, H, W)
+#     :param polygon_mask: ndarray - binary mask from polygon, shape (H, W)
+#     :param increment: int - block size for HSL algorithm
+#     :return: refined mask shape (H, W)
+#     """
+#     # Run HSL water detection on the full image
+#     refined_mask = create_water_mask_hsl(img_data, increment, polygon_mask)
+#
+#     # Only keep pixels where both masks agree
+#
+#
+#     return  refined_mask.astype(np.uint8)
+#
+#
+#
+# @cuda.jit
+# def _hsl_compute_blocks_kernel(data: np.ndarray[tuple[int, int, int]], mask: np.ndarray[tuple[bool, bool]], increment: int, hue_min: int, hue_max: int) -> None:
+#     """
+#     Helper function for computing the blocks in the jumping block algorithm for CUDA processing of the water mask.
+#
+#     :param data: the image array
+#     :param mask: The mask to compute the blocks in. this is the return value.
+#     :param increment: the amount the block jumps. Not max pixels, the size of the square is increment squared.
+#
+#     """
+#     bx, by = cuda.grid(2)
+#     y_shape = data.shape[1]
+#     x_shape = data.shape[2]
+#
+#     y_blocks = (y_shape + increment - 1) // increment
+#     x_blocks = (x_shape + increment - 1) // increment
+#
+#     if by >= y_blocks or bx >= x_blocks:
+#         return
+#
+#     y_start = by * increment
+#     x_start = bx * increment
+#     y_end = min(y_start + increment, y_shape)
+#     x_end = min(x_start + increment, x_shape)
+#
+#     r_sum = 0.0
+#     g_sum = 0.0
+#     b_sum = 0.0
+#     count = (y_end - y_start) * (x_end - x_start)
+#
+#     for y in range(y_start, y_end):
+#         for x in range(x_start, x_end):
+#             r_sum += data[0, y, x]
+#             g_sum += data[1, y, x]
+#             b_sum += data[2, y, x]
+#
+#     r_mean = (r_sum / count) / RGB_MAX
+#     g_mean = (g_sum / count) / RGB_MAX
+#     b_mean = (b_sum / count) / RGB_MAX
+#
+#     max_c = max(r_mean, g_mean, b_mean)
+#     min_c = min(r_mean, g_mean, b_mean)
+#     delta = max_c - min_c
+#
+#     h = 0.0
+#     if delta > 0:
+#         if max_c == r_mean:
+#             h = (HUE_SECTOR_DEGREES * ((g_mean - b_mean) / delta)) % HUE_FULL_CIRCLE
+#         elif max_c == g_mean:
+#             h = HUE_SECTOR_DEGREES * ((b_mean - r_mean) / delta) + HUE_GREEN_OFFSET
+#         else:
+#             h = HUE_SECTOR_DEGREES * ((r_mean - g_mean) / delta) + HUE_BLUE_OFFSET
+#
+#     if hue_min < h < hue_max:
+#         for y in range(y_start, y_end):
+#             for x in range(x_start, x_end):
+#                 mask[y, x] = True
+#
+# def create_water_mask_hsl_cuda(data: ndarray[tuple[int, int, int]], increment: int) -> ndarray[tuple[bool]]:
+#     """
+#     Computes the water mask in HSL using cuda cores, slower than CPU processing if processor is of similar quality as
+#      GPU.
+#
+#     :param data: the image array
+#     :param increment: The size of the square to compute water detection on. Not total pixels.
+#     :return: the mask outlining water.
+#     """
+#     y_shape = data.shape[1]
+#     x_shape = data.shape[2]
+#     y_blocks = (y_shape + increment - 1) // increment
+#     x_blocks = (x_shape + increment - 1) // increment
+#
+#     data_gpu = cuda.to_device(data)
+#     mask_gpu = cuda.to_device(np.zeros((y_shape, x_shape), dtype=np.bool_))
+#     config = Config()
+#     CUDA_THREADS_PER_BLOCK = int(config.get("water_detector","cuda_threads_per_block" ))
+#     hue_min = int(config.get("water_detector","water_hue_min"))
+#     hue_max = int(config.get("water_detector","water_hue_max"))
+#     threads_2d = (CUDA_THREADS_PER_BLOCK, CUDA_THREADS_PER_BLOCK)
+#     blocks_2d = (math.ceil(x_blocks / CUDA_THREADS_PER_BLOCK), math.ceil(y_blocks / CUDA_THREADS_PER_BLOCK))
+#     _hsl_compute_blocks_kernel[blocks_2d, threads_2d](data_gpu, mask_gpu, increment, hue_min, hue_max)
+#
+#     return mask_gpu.copy_to_host()
 
