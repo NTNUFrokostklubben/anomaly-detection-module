@@ -87,7 +87,7 @@ def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, wat
         increment = int(config.get("pipeline", "water_mask_increment"))
         t_0 = time.monotonic()
         polygon_mask = wd.create_water_polygon_mask(water_gdf, sosig_df, image.img_id, image.metadata)
-        if not polygon_mask.any():
+        if polygon_mask.any():
             #print(f"  polygon_mask:   {(time.monotonic() - t_0):.2f}s")
             t = time.monotonic()
             hsl_mask = wd.create_water_mask_hsl(image.img_arr, increment, polygon_mask)
@@ -162,6 +162,10 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         db = DbConnector()
         anomaly_sets = []
         config = Config()
+        run_artifact_analysis = config.get("pipeline", "run_block_artifact").lower() == "true"
+        run_water_analysis = config.get("pipeline", "run_water_detection").lower() == "true"
+        run_line_artifact_analysis = config.get("pipeline", "run_line_artifact").lower() == "true"
+        run_color_diff_analysis = config.get("pipeline", "run_color_diff").lower() == "true"
         log = True
         last_processed_image: Image = None
         with ThreadPoolExecutor(max_workers=4) as executor:
@@ -182,17 +186,17 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
 
                 arr1, rm1, arr2, _ = load_two_image_arrays(img1_path, img2_path)
                 image1.img_arr, image1.metadata = arr1, rm1
+                futures = {}
+                if run_artifact_analysis:
+                    futures[executor.submit(start_artifact_detection_analysis, image1,
+                                    int(config.get("pipeline", "artifact_block_increment")), log)]= "artifact"
+                if run_line_artifact_analysis:
+                    futures[ executor.submit(start_line_artefact_detection_analysis, arr1, img1_path, log)] = "line_artifact"
 
-
-                futures = {
-                    executor.submit(start_artifact_detection_analysis, image1,
-                                    int(config.get("pipeline", "artifact_block_increment")), log): "artifact",
-                    executor.submit(start_line_artefact_detection_analysis, arr1, img1_path, log): "line_artifact",
-                }
-                if sosi_gdf.iloc[i]["stripenummer"] == sosi_gdf.iloc[i + 1]["stripenummer"]:
+                if run_color_diff_analysis and sosi_gdf.iloc[i]["stripenummer"] == sosi_gdf.iloc[i + 1]["stripenummer"]:
                      futures[ executor.submit(start_color_difference_analysis, sosi_gdf, i, arr1, arr2, image1.img_id, log)] = "color"
 
-                if water_gdf is not None:
+                if water_gdf is not None and run_water_analysis:
                     futures[executor.submit(start_water_detection_analysis, image1, sosi_gdf, water_gdf, log)] = "water"
 
                 for future in as_completed(futures):
