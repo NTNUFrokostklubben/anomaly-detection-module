@@ -45,7 +45,7 @@ def start_line_artefact_detection_analysis(arr: np.ndarray, img_path: Path, log:
 
 def start_artifact_detection_analysis(image, increment, log: bool):
     """
-    Start artefact detection analysis on a single image, using the line artefact data from the database to compare against.
+    Start artefact detection analysis on a single image, using the line artefact data from the database to compare against.images
     :param image: the image to analyse, must contain img_arr and img_id
     :param increment: the size of the block of pixels to compare.
     :param log: whether to log or not
@@ -57,6 +57,7 @@ def start_artifact_detection_analysis(image, increment, log: bool):
         after = time.monotonic()
         t = after - before
         db = DbConnector()
+            #Removes previous line if this image is the start of a new line.
 
         if values is not None and not log:
             print("----------- Artifact Analysis -------------")
@@ -86,23 +87,26 @@ def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, wat
         increment = int(config.get("pipeline", "water_mask_increment"))
         t_0 = time.monotonic()
         polygon_mask = wd.create_water_polygon_mask(water_gdf, sosig_df, image.img_id, image.metadata)
-        #print(f"  polygon_mask:   {(time.monotonic() - t_0):.2f}s")
-        t = time.monotonic()
-        hsl_mask = wd.create_water_mask_hsl(image.img_arr, increment, polygon_mask)
-        #print(f"  hsl_mask:       {(time.monotonic() - t):.2f}s")
-        disagreement_ratio = wd.find_disagreement_ratio(polygon_mask, hsl_mask)
+        if not polygon_mask.any():
+            #print(f"  polygon_mask:   {(time.monotonic() - t_0):.2f}s")
+            t = time.monotonic()
+            hsl_mask = wd.create_water_mask_hsl(image.img_arr, increment, polygon_mask)
+            #print(f"  hsl_mask:       {(time.monotonic() - t):.2f}s")
+            disagreement_ratio = wd.find_disagreement_ratio(polygon_mask, hsl_mask)
 
-        confidence_level = wd.dissimilarity_confidence(disagreement_ratio)
-        t_1 = time.monotonic()
-        db = DbConnector()
-        db.add_analysis(image.img_id, AnalysisType.WATER_MASK, confidence_level)
-        if log:
-            logger.info("Water mask disagreement ratio: %s, confidence level: %s", disagreement_ratio, confidence_level, extra={"analysis": "water_mask", "img_id": image.img_id})
+            confidence_level = wd.dissimilarity_confidence(disagreement_ratio)
+            t_1 = time.monotonic()
+            db = DbConnector()
+            db.add_analysis(image.img_id, AnalysisType.WATER_MASK, confidence_level)
+            if log:
+                logger.info("Water mask disagreement ratio: %s, confidence level: %s", disagreement_ratio, confidence_level, extra={"analysis": "water_mask", "img_id": image.img_id})
+            else:
+                print("----------- Water  mask difference -------------")
+                print(f"Analysing water mask in image{image.img_id}")
+                print(f"Disagreement ratio between masks: {disagreement_ratio}")
+                print(f"Time analysis: {t_1 - t_0:.6f}s\n")
         else:
-            print("----------- Water  mask difference -------------")
-            print(f"Analysing water mask in image{image.img_id}")
-            print(f"Disagreement ratio between masks: {disagreement_ratio}")
-            print(f"Time analysis: {t_1 - t_0:.6f}s\n")
+            logger.info("No water detected in polygon mask, skipping water mask analysis.", extra={"analysis": "water_mask", "img_id": image.img_id})
     except Exception as e:
         logger.error("Water detection failed, excpt_msg:%s",e,  extra={"analysis": "water_mask", "img_id": image.img_id})
 
@@ -148,6 +152,10 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         stop_analysis_event: Event called over grpc to stop processing the analysis and send back current dataset.
     """
     try:
+        #Cut down the gdf to only the images in the current folder, and reset the index for easier access later.
+        sosi_gdf = sosi_gdf[
+            sosi_gdf["bildefilRGB"].apply(lambda f: (image_folder_path / f).exists())
+        ].reset_index(drop=True)
         image_count = len(sosi_gdf)
 
         t0 = time.perf_counter()
@@ -155,6 +163,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         anomaly_sets = []
         config = Config()
         log = True
+        last_processed_image: Image = None
         with ThreadPoolExecutor(max_workers=4) as executor:
             for i in range(image_count - 1):
                 # Stops analysis if the stop_analysis_event has been triggered. This is cross-thread
@@ -164,16 +173,16 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
                 img1_path = image_folder_path / sosi_gdf.iloc[i]["bildefilRGB"]
                 img2_path = image_folder_path / sosi_gdf.iloc[i + 1]["bildefilRGB"]
 
-                if not img1_path.exists() or not img2_path.exists():
-                    continue
-
                 image1: Image = Image.from_filename(sosi_gdf.iloc[i]["bildefilRGB"])
-                arr1, rm1, arr2, _, t_load = load_two_image_arrays(img1_path, img2_path)
+
+                if (last_processed_image is not None
+                        and image1.prefix == last_processed_image.prefix
+                        and image1.line != last_processed_image.line):
+                    db.delete_artifact_data_line(last_processed_image.prefix, last_processed_image.line)
+
+                arr1, rm1, arr2, _ = load_two_image_arrays(img1_path, img2_path)
                 image1.img_arr, image1.metadata = arr1, rm1
 
-                # print("------------------------------------------")
-                # print(f"Comparing image {sosi_gdf.iloc[i]['bildenummer']} and image {sosi_gdf.iloc[i + 1]['bildenummer']}")
-                #print(f"Loading images to arr : {t_load:.6f}s \n")
 
                 futures = {
                     executor.submit(start_artifact_detection_analysis, image1,
@@ -196,7 +205,8 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
                 image1.max_confidence = db.get_max_confidence_img(image1.img_id)
                 print(f"Max confidence level for image {image1.img_id}: {image1.max_confidence}")
 
-                print("\n")
+
+                last_processed_image = image1
                 image1.img_arr = None
                 image1.metadata = None
                 anomaly_sets.append(image1)
@@ -204,6 +214,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
                     on_image_complete()
                 t_1 = time.monotonic()
                 print(f"Total time for analyses on image {image1.img_id}: {(t_1 - t_0):.2f}s")
+                print("\n")
 
         print("Overall time:", time.perf_counter() - t0)
         print(f"Found {image_count} images in the GeoPackage.")

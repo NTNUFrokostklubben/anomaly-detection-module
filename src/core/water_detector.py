@@ -393,6 +393,8 @@ def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataF
     if raster_crs:
         row = fo.find_image_row_img_name(sosi_df, img_name)
     overlap = contour_gdf['geometry'].intersects(row['geometry'])
+    if not overlap.any():
+        return np.zeros((height, width), dtype=np.uint8)
 
     sosi_corners_flat = [
         pt
