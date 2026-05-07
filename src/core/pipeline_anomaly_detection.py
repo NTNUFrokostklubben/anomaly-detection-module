@@ -45,7 +45,8 @@ def start_line_artefact_detection_analysis(arr: np.ndarray, img_path: Path, log:
 
 def start_artifact_detection_analysis(image, increment, log: bool):
     """
-    Start artefact detection analysis on a single image, using the line artefact data from the database to compare against.images
+    Start artefact detection analysis on a single image, using the line artefact data from the database to compare against.
+
     :param image: the image to analyse, must contain img_arr and img_id
     :param increment: the size of the block of pixels to compare.
     :param log: whether to log or not
