@@ -55,6 +55,8 @@ def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataF
     if raster_crs:
         row = fo.find_image_row_img_name(sosi_df, img_name)
     overlap = contour_gdf['geometry'].intersects(row['geometry'])
+    if not overlap.any():
+        return np.zeros((height, width), dtype=np.uint8)
 
     sosi_corners_flat = [
         pt
@@ -94,6 +96,77 @@ def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataF
         invert=True,
         out_shape=(height, width)
     )
+
+
+
+def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int, constraint_region: np.ndarray[tuple[bool]]) -> np.ndarray:
+    """
+    Create a mask outlining the water on an image using a jumping block algorithm. Optionally allows for looking
+     only within a constrained region of the full image.
+
+    :param data: the image array
+    :param increment: the amount the block should jump. Not max pixels, the size of the square is increment squared.
+    :param constraint_region: the region to not run the algorithm in.
+    :return: a mask outlining water for the corresponding image.
+    """
+    config = Config()
+    hue_min = float(config.get("water_detector", "water_hue_min"))
+    hue_max = float(config.get("water_detector", "water_hue_max"))
+    chroma_min = float(config.get("water_detector", "water_chroma_min"))
+    return _create_water_mask_hsl_core(data, increment, constraint_region, hue_min, hue_max, chroma_min)
+
+
+
+@njit(parallel=True, cache=True)
+def _create_water_mask_hsl_core(data: np.ndarray[tuple[int, int, int]], increment: int, constraint_region: np.ndarray[tuple[bool]], hue_min: float, hue_max: float, chroma_min: float) -> np.ndarray:
+    """
+    Core functionality of `create_water_mask_hsl`, separated out to allow for JIT compilation with numba.
+    Detects water blocks based on mean hue and chroma, with an optional constraint region to limit the search area.
+    Uses a jumping block approach for efficiency, and refines block edges by checking for blue dominance in columns.
+
+    :param data: The image array to mask
+    :param increment: the number of pixels to jump for each block. The block size is increment squared.
+    :param constraint_region: the region to not run the algorithm in.
+    :param hue_min: What hue is considered the lower bound of water.
+    :param hue_max: What hue is considered the upper bound of water.
+    :param chroma_min: how much chroma water should at least have.
+    :return: the finished mask
+    """
+    y_shape = data.shape[1]
+    x_shape = data.shape[2]
+
+    if constraint_region is None:
+        constraint_region = np.ones((data.shape[1], data.shape[2]), dtype=np.bool_)
+
+    mask = np.zeros((y_shape, x_shape), dtype=np.bool_)
+
+    y_blocks = (y_shape + increment - 1) // increment
+    x_blocks = (x_shape + increment - 1) // increment
+
+    for by in prange(y_blocks):
+        previous = False
+        for bx in range(x_blocks):
+            y_start = by * increment
+            x_start = bx * increment
+            y_end = min(y_start + increment, y_shape)
+            x_end = min(x_start + increment, x_shape)
+
+            if not _block_has_mask(constraint_region, y_start, y_end, x_start, x_end):
+                previous = False
+                continue
+
+            r_mean, g_mean, b_mean = block_mean_rgb(data, y_start, y_end, x_start, x_end, constraint_region)
+            h, chroma = _rgb_to_hue(r_mean, g_mean, b_mean)
+
+            if hue_min < h < hue_max and chroma > chroma_min:
+                if not previous:
+                    x_start = _find_coast_x(data, constraint_region, y_start, y_end, x_start, x_end)
+                _fill_block(mask, constraint_region, y_start, y_end, x_start, x_end)
+                previous = True
+            else:
+                previous = False
+
+    return mask
 
 
 
@@ -220,61 +293,6 @@ def _fill_block(mask: np.ndarray, polygon_mask: np.ndarray, y_start: int, y_end:
                 mask[y, x] = True
 
 
-def create_water_mask_hsl(data: np.ndarray[tuple[int, int, int]], increment: int, constraint_region: np.ndarray[tuple[bool]]) -> np.ndarray:
-    """
-    Create a mask outlining the water on an image using a jumping block algorithm. Optionally allows for looking
-     only within a constrained region of the full image.
-
-    :param data: the image array
-    :param increment: the amount the block should jump. Not max pixels, the size of the square is increment squared.
-    :param constraint_region: the region to not run the algorithm in.
-    :return: a mask outlining water for the corresponding image.
-    """
-    config = Config()
-    hue_min = float(config.get("water_detector", "water_hue_min"))
-    hue_max = float(config.get("water_detector", "water_hue_max"))
-    chroma_min = float(config.get("water_detector", "water_chroma_min"))
-    return _create_water_mask_hsl_core(data, increment, constraint_region, hue_min, hue_max, chroma_min)
-
-
-@njit(parallel=True, cache=True)
-def _create_water_mask_hsl_core(data: np.ndarray[tuple[int, int, int]], increment: int, constraint_region: np.ndarray[tuple[bool]], hue_min: float, hue_max: float, chroma_min: float) -> np.ndarray:
-    y_shape = data.shape[1]
-    x_shape = data.shape[2]
-
-    if constraint_region is None:
-        constraint_region = np.ones((data.shape[1], data.shape[2]), dtype=np.bool_)
-
-    mask = np.zeros((y_shape, x_shape), dtype=np.bool_)
-
-    y_blocks = (y_shape + increment - 1) // increment
-    x_blocks = (x_shape + increment - 1) // increment
-
-    for by in prange(y_blocks):
-        previous = False
-        for bx in range(x_blocks):
-            y_start = by * increment
-            x_start = bx * increment
-            y_end = min(y_start + increment, y_shape)
-            x_end = min(x_start + increment, x_shape)
-
-            if not _block_has_mask(constraint_region, y_start, y_end, x_start, x_end):
-                previous = False
-                continue
-
-            r_mean, g_mean, b_mean = block_mean_rgb(data, y_start, y_end, x_start, x_end, constraint_region)
-            h, chroma = _rgb_to_hue(r_mean, g_mean, b_mean)
-
-            if hue_min < h < hue_max and chroma > chroma_min:
-                if not previous:
-                    x_start = _find_coast_x(data, constraint_region, y_start, y_end, x_start, x_end)
-                _fill_block(mask, constraint_region, y_start, y_end, x_start, x_end)
-                previous = True
-            else:
-                previous = False
-
-    return mask
-
 
 
 def clean_water_mask(mask_array: ndarray[tuple[int, int]], max_size:int) -> ndarray[tuple[int, int]]:
@@ -330,7 +348,6 @@ def _affine_from_sosi_polygon(geom, width: int, height: int) -> Affine:
     f = tl[1]
 
     return Affine(a, b, c, d, e, f)
-
 
 
 def geo_to_pixel(x:float, y:float, inv_affine: Affine) -> list[Any]:
