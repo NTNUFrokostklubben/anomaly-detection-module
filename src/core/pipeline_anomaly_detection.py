@@ -53,13 +53,9 @@ def start_artifact_detection_analysis(image, increment, log: bool):
     """
 
     try:
-        before = time.monotonic()
         values = ad.detect_artifact_consistency([image], increment)
-        after = time.monotonic()
-        t = after - before
-        db = DbConnector()
-            #Removes previous line if this image is the start of a new line.
 
+        db = DbConnector()
         if values is not None and not log:
             print("----------- Artifact Analysis -------------")
             print(f"Analysing artifacts in image{image.img_id}")
@@ -84,30 +80,16 @@ def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, wat
     :param log:  bool for whether to log or not.
     """
     try:
-        config = Config()
-        increment = int(config.get("pipeline", "water_mask_increment"))
-        t_0 = time.monotonic()
-        polygon_mask = wd.create_water_polygon_mask(water_gdf, sosig_df, image.img_id, image.metadata)
-        if polygon_mask.any():
-            #print(f"  polygon_mask:   {(time.monotonic() - t_0):.2f}s")
-            t = time.monotonic()
-            hsl_mask = wd.create_water_mask_hsl(image.img_arr, increment, polygon_mask)
-            #print(f"  hsl_mask:       {(time.monotonic() - t):.2f}s")
-            disagreement_ratio = wd.find_disagreement_ratio(polygon_mask, hsl_mask)
-
-            confidence_level = wd.dissimilarity_confidence(disagreement_ratio)
-            t_1 = time.monotonic()
-            db = DbConnector()
-            db.add_analysis(image.img_id, AnalysisType.WATER_MASK, confidence_level)
-            if log:
-                logger.info("Water mask disagreement ratio: %s, confidence level: %s", disagreement_ratio, confidence_level, extra={"analysis": "water_mask", "img_id": image.img_id})
-            else:
-                print("----------- Water  mask difference -------------")
-                print(f"Analysing water mask in image{image.img_id}")
-                print(f"Disagreement ratio between masks: {disagreement_ratio}")
-                print(f"Time analysis: {t_1 - t_0:.6f}s\n")
+        confidence_level = wd.start_analysis(water_gdf, sosig_df, image)
+        db = DbConnector()
+        db.add_analysis(image.img_id, AnalysisType.WATER_MASK, confidence_level)
+        if log:
+            logger.info("Water mask confidence level: %s", confidence_level, extra={"analysis": "water_mask", "img_id": image.img_id})
         else:
-            logger.info("No water detected in polygon mask, skipping water mask analysis.", extra={"analysis": "water_mask", "img_id": image.img_id})
+            print("----------- Water  mask difference -------------")
+            print(f"Analysing water mask in image{image.img_id}")
+            print(f"confidence ratio : {confidence_level}")
+
     except Exception as e:
         logger.error("Water detection failed, excpt_msg:%s",e,  extra={"analysis": "water_mask", "img_id": image.img_id})
 
@@ -124,7 +106,7 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
         image_id (str): The image id to add the analysis result to the database
     """
     try:
-        avg1, avg2, diff, confidence_level = check_difference_two_images(
+        avg1, avg2, diff, confidence_level, _ = check_difference_two_images(
             gdf,
             int(gdf.iloc[i]["bildenummer"]),
             int(gdf.iloc[i]["stripenummer"]),
