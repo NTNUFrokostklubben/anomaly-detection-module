@@ -1,19 +1,18 @@
+import logging
+
 import utils.find_overlap as fo
 import math
 from typing import Any
 
 import geopandas as gp
 import cv2
-from numba import njit, prange, cuda
+from numba import njit, prange
 import numpy as np
 from numpy import ndarray
-from skimage import morphology
-from scipy import ndimage
 from shapely.ops import unary_union
 from affine import Affine
 from rasterio.features import geometry_mask
 from shapely import Polygon, MultiPolygon
-
 from entity.image import RasterMeta
 from services.config_parser.ConfigHandler import Config
 
@@ -25,6 +24,28 @@ HUE_SECTOR_DEGREES: float = 60.0
 HUE_GREEN_OFFSET: float = 120.0
 HUE_BLUE_OFFSET: float = 240.0
 HUE_FULL_CIRCLE: float = 360.0
+logger = logging.getLogger("analysis.pipeline")
+
+def start_analysis(water_gdf, sosig_df, image):
+    """
+    Function to start water detection analysis pipeline.
+    :param water_gdf:  The GeoDataFrame containing the water polygons.
+    :param sosig_df:   The GeoDataFrame containing the sosi polygons.
+    :param image:   The image object to be analyzed.
+    :return:     The confidence score
+    """
+
+    config = Config()
+    increment = int(config.get("pipeline", "water_mask_increment"))
+    polygon_mask = create_water_polygon_mask(water_gdf, sosig_df, image.img_id, image.metadata)
+    if polygon_mask.any():
+        hsl_mask = create_water_mask_hsl(image.img_arr, increment, polygon_mask)
+        disagreement_ratio = find_disagreement_ratio(polygon_mask, hsl_mask)
+        return dissimilarity_confidence(disagreement_ratio)
+    else:
+        logger.info("No water detected in polygon mask, skipping water mask analysis.",
+                    extra={"analysis": "water_mask", "img_id": image.img_id})
+        return None
 
 
 def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataFrame, img_name: str, ds: RasterMeta | Any) -> np.ndarray:
