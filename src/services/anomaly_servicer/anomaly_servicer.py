@@ -80,7 +80,6 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
 
         image_folder_path = Path(project_metadata.image_folder_path)
 
-        print("[initial run]",DbConnector().get_project(project_metadata.project_name).last_processed_image_index)
 
         # Clears the stop event to not stop immediately if it was set.
         self._stop_event.clear()
@@ -90,7 +89,6 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
 
         def on_image_complete():
             DbConnector().increment_project_image_index(project_metadata.project_name)
-            print("[image complete] ",DbConnector().get_project(project_metadata.project_name).last_processed_image_index)
 
         start_index = DbConnector().get_project(project_metadata.project_name).last_processed_image_index
 
@@ -109,7 +107,7 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
             detected_anomalies = start_anomaly_analysis(gdf, image_folder_path, on_image_complete=on_image_complete,
                                                         stop_analysis_event=self._stop_event, start_index=start_index)
 
-        print("AnomalyServiceServicer.DetectAnomalySet")
+
 
         anomaly_sets: list[anomaly_pb2.AnomalySet] = []
         # Map to AnomalySet and build up a DetectAnomalySetResponse with all anomalies from here
@@ -158,8 +156,7 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
         """
         fetched_project: ProjectMetadata = DbConnector().get_project(request.project_name)
         total = count_images_in_folder(fetched_project.image_folder_path)
-        print("[get progress] ",DbConnector().get_project(fetched_project.project_name).last_processed_image_index)
-        # print(f"GetProgress: last={fetched_project.last_processed_image_index}, total={total}")
+
         return anomaly_pb2.GetProgressResponse(
             project_name=fetched_project.project_name,
             last_processed_image=fetched_project.last_processed_image_index,
