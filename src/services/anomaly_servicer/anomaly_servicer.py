@@ -12,7 +12,6 @@ from services.sosi_converter_service import convert_sosi_to_gpkg, convert_sosi_t
 from core.pipeline_anomaly_detection import start_anomaly_analysis
 from utils.io_tools import get_gdf_content
 
-
 def _canonicalize_path(p: str) -> str:
     """
     Expand user and resolve symlinks.
@@ -73,12 +72,14 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
             context:
 
         Returns:
-
         """
+
+
 
         project_metadata = self._resolve_project_metadata(request.project_metadata, context)
 
         image_folder_path = Path(project_metadata.image_folder_path)
+
 
         # Clears the stop event to not stop immediately if it was set.
         self._stop_event.clear()
@@ -88,6 +89,8 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
 
         def on_image_complete():
             DbConnector().increment_project_image_index(project_metadata.project_name)
+
+        start_index = DbConnector().get_project(project_metadata.project_name).last_processed_image_index
 
         detected_anomalies: list[Image] = []
 
@@ -99,12 +102,12 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
             water_gdf = convert_sosi_get_gdf(Path(project_metadata.sosi_water_mask_path))
             detected_anomalies = start_anomaly_analysis(gdf, image_folder_path, water_gdf=water_gdf,
                                                         on_image_complete=on_image_complete,
-                                                        stop_analysis_event=self._stop_event)
+                                                        stop_analysis_event=self._stop_event, start_index=start_index)
         else:
             detected_anomalies = start_anomaly_analysis(gdf, image_folder_path, on_image_complete=on_image_complete,
-                                                        stop_analysis_event=self._stop_event)
+                                                        stop_analysis_event=self._stop_event, start_index=start_index)
 
-        print("AnomalyServiceServicer.DetectAnomalySet")
+
 
         anomaly_sets: list[anomaly_pb2.AnomalySet] = []
         # Map to AnomalySet and build up a DetectAnomalySetResponse with all anomalies from here
@@ -153,7 +156,7 @@ class AnomalyServiceServicer(anomaly_pb2_grpc.AnomalyDetectorServiceServicer):
         """
         fetched_project: ProjectMetadata = DbConnector().get_project(request.project_name)
         total = count_images_in_folder(fetched_project.image_folder_path)
-        # print(f"GetProgress: last={fetched_project.last_processed_image_index}, total={total}")
+
         return anomaly_pb2.GetProgressResponse(
             project_name=fetched_project.project_name,
             last_processed_image=fetched_project.last_processed_image_index,
