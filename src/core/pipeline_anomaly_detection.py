@@ -124,10 +124,11 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
 
 
 def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, *, water_gdf: gpd.GeoDataFrame = None,
-                           on_image_complete=None, stop_analysis_event=None):
+                           on_image_complete=None, stop_analysis_event=None, start_index=0):
     """
     Start anomaly analysis
     Args:
+        start_index: Image index to start processing from.
         sosi_gdf: The geodataframe to analyse
         image_folder_path (Path): The folder path of the images to analyse
         water_gdf: The water contour GeoDataFrame for water masking.
@@ -152,7 +153,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         log = True
         last_processed_image: Image = None
         with ThreadPoolExecutor(max_workers=4) as executor:
-            for i in range(image_count - 1):
+            for i in range(start_index,image_count - 1):
                 # Stops analysis if the stop_analysis_event has been triggered. This is cross-thread
                 if stop_analysis_event is not None and stop_analysis_event.is_set():
                     break

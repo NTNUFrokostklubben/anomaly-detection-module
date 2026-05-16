@@ -6,7 +6,8 @@ import grpc
 from main import cli_run
 from services.anomaly_servicer.anomaly_servicer import AnomalyServiceServicer
 from services.logger.logger import setup_logging
-from skavl_proto import anomaly_pb2_grpc
+from skavl_proto import anomaly_pb2_grpc, shutdown_pb2_grpc
+from services.shutdown_servicer.shutdown_servicer import ShutdownServicer
 from utils import DbConnector
 
 import argparse
@@ -66,6 +67,8 @@ def serve(args):
     db.init()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
     anomaly_pb2_grpc.add_AnomalyDetectorServiceServicer_to_server(AnomalyServiceServicer(), server)
+    shutdown_pb2_grpc.add_ShutdownServiceServicer_to_server(ShutdownServicer(server), server)
+
 
     # Accepts connections only locally when running locally.
     server_ip = ""
@@ -76,11 +79,7 @@ def serve(args):
     server.add_insecure_port(f"{server_ip}:{server_port}")
     server.start()
     print(f"gRPC server listening on {server_ip}:{server_port}")
-    try:
-        while True:
-            time.sleep(3600)
-    except KeyboardInterrupt:
-        server.stop(0)
+    server.wait_for_termination()
 
 
 if __name__ == "__main__":
