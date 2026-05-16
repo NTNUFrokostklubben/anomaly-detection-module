@@ -55,7 +55,7 @@ def detect_artifact_consistency(images: list[image.Image], increment: int) -> fl
     for img in images:
         data = calculate_average_color_block(img.img_arr, increment)
         img.artifact_data = image.ArtifactData( data=data,dtype=data.dtype ,shape=data.shape,offset=increment )
-        conn.add_artifact_data(img.img_id,data=img.artifact_data.data, offset= increment )
+        conn.add_artifact_data(img.img_id, data=(data * 255).astype(np.uint8), offset=increment)
 
     expected_shape = images[0].artifact_data.data.shape
     all_data = [d for d in line_values if d.shape == expected_shape] + [img.artifact_data.data for img in images]
