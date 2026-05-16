@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 import anomaly_pb2 as anomaly__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0creport.proto\x12\x0fskavl.report.v1\x1a\ranomaly.proto\"\xb8\x01\n\x17ReportGenerationRequest\x12;\n\x10project_metadata\x18\x01 \x01(\x0b\x32!.skavl.anomaly.v1.ProjectMetadata\x12\x32\n\x0c\x61nomaly_sets\x18\x02 \x03(\x0b\x32\x1c.skavl.anomaly.v1.AnomalySet\x12\x1c\n\x14\x63onfidence_threshold\x18\x03 \x01(\x02\x12\x0e\n\x06locale\x18\x04 \x01(\t\".\n\x18ReportGenerationResponse\x12\x12\n\nreport_url\x18\x01 \x01(\t2\xf3\x01\n\rReportService\x12q\n\x1aGenerateReportUnclassified\x12(.skavl.report.v1.ReportGenerationRequest\x1a).skavl.report.v1.ReportGenerationResponse\x12o\n\x18GenerateReportClassified\x12(.skavl.report.v1.ReportGenerationRequest\x1a).skavl.report.v1.ReportGenerationResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0creport.proto\x12\x0fskavl.report.v1\x1a\ranomaly.proto\"\xcf\x01\n\x17ReportGenerationRequest\x12;\n\x10project_metadata\x18\x01 \x01(\x0b\x32!.skavl.anomaly.v1.ProjectMetadata\x12\x32\n\x0c\x61nomaly_sets\x18\x02 \x03(\x0b\x32\x1c.skavl.anomaly.v1.AnomalySet\x12\x1c\n\x14\x63onfidence_threshold\x18\x03 \x01(\x02\x12\x0e\n\x06locale\x18\x04 \x01(\t\x12\x15\n\rsave_location\x18\x05 \x01(\t\".\n\x18ReportGenerationResponse\x12\x12\n\nreport_url\x18\x01 \x01(\t2\xf3\x01\n\rReportService\x12q\n\x1aGenerateReportUnclassified\x12(.skavl.report.v1.ReportGenerationRequest\x1a).skavl.report.v1.ReportGenerationResponse\x12o\n\x18GenerateReportClassified\x12(.skavl.report.v1.ReportGenerationRequest\x1a).skavl.report.v1.ReportGenerationResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,9 +33,9 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'report_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_REPORTGENERATIONREQUEST']._serialized_start=49
-  _globals['_REPORTGENERATIONREQUEST']._serialized_end=233
-  _globals['_REPORTGENERATIONRESPONSE']._serialized_start=235
-  _globals['_REPORTGENERATIONRESPONSE']._serialized_end=281
-  _globals['_REPORTSERVICE']._serialized_start=284
-  _globals['_REPORTSERVICE']._serialized_end=527
+  _globals['_REPORTGENERATIONREQUEST']._serialized_end=256
+  _globals['_REPORTGENERATIONRESPONSE']._serialized_start=258
+  _globals['_REPORTGENERATIONRESPONSE']._serialized_end=304
+  _globals['_REPORTSERVICE']._serialized_start=307
+  _globals['_REPORTSERVICE']._serialized_end=550
 # @@protoc_insertion_point(module_scope)
