@@ -62,26 +62,26 @@ def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataF
 
     width, height = ds.width, ds.height
     raster_crs = ds.projection
-
+    config = Config()
     if raster_crs:
         contour_gdf = contour_gdf.to_crs(raster_crs)
         sosi_df = sosi_df.to_crs(raster_crs)
         affine = Affine.from_gdal(*ds.geotransform)
     else:
         row = fo.find_image_row_img_name(sosi_df, img_name)
-        affine = _affine_from_sosi_polygon(row['geometry'], width, height)
+        affine = _affine_from_sosi_polygon(row[config.get("sosi_column_headers", "image_geometry_column_header")], width, height)
 
     inv_affine = ~affine
 
     if raster_crs:
         row = fo.find_image_row_img_name(sosi_df, img_name)
-    overlap = contour_gdf['geometry'].intersects(row['geometry'])
+    overlap = contour_gdf[config.get("sosi_column_headers", "image_geometry_column_header")].intersects(row[config.get("sosi_column_headers", "image_geometry_column_header")])
     if not overlap.any():
         return np.zeros((height, width), dtype=np.uint8)
 
     sosi_corners_flat = [
         pt
-        for ring in [list(geom.exterior.coords)[:-1] for geom in row['geometry'].geoms]
+        for ring in [list(geom.exterior.coords)[:-1] for geom in row[config.get("sosi_column_headers", "image_geometry_column_header")].geoms]
         for pt in ring
     ]
     sosi_px = [(geo_to_pixel(x, y, inv_affine), (x, y)) for x, y in sosi_corners_flat]
@@ -108,7 +108,7 @@ def create_water_polygon_mask(contour_gdf: gp.GeoDataFrame, sosi_df: gp.GeoDataF
 
     transform = cv2.getPerspectiveTransform(src_pts, dst_pts)
 
-    corrected_geoms = contour_gdf[overlap]['geometry'].apply(lambda g: apply_homography(g, transform, affine).buffer(0))
+    corrected_geoms = contour_gdf[overlap][config.get("sosi_column_headers", "image_geometry_column_header")].apply(lambda g: apply_homography(g, transform, affine).buffer(0))
     merged = unary_union(corrected_geoms)
 
     return geometry_mask(

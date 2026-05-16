@@ -106,13 +106,14 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
         image_id (str): The image id to add the analysis result to the database
     """
     try:
-        avg1, avg2, diff, confidence_level = check_difference_two_images(
+        config = Config()
+        avg1, avg2, diff, confidence_level, _ = check_difference_two_images(
             gdf,
-            int(gdf.iloc[i]["bildenummer"]),
-            int(gdf.iloc[i]["stripenummer"]),
+            int(gdf.iloc[i][config.get("sosi_column_headers", "image_number_column_header")]),
+            int(gdf.iloc[i][config.get("sosi_column_headers", "image_stripe_column_header")]),
             arr1,
-            int(gdf.iloc[i + 1]["bildenummer"]),
-            int(gdf.iloc[i + 1]["stripenummer"]),
+            int(gdf.iloc[i + 1][config.get("sosi_column_headers", "image_number_column_header")]),
+            int(gdf.iloc[i + 1][config.get("sosi_column_headers", "image_stripe_column_header")]),
             arr2,
         )
         db = DbConnector()
@@ -136,6 +137,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         stop_analysis_event: Event called over grpc to stop processing the analysis and send back current dataset.
     """
     try:
+        config = Config()
         #Cut down the gdf to only the images in the current folder, and reset the index for easier access later.
         sosi_gdf = sosi_gdf[
             sosi_gdf["bildefilRGB"].apply(lambda f: (image_folder_path / f).exists())
@@ -158,10 +160,10 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
                 if stop_analysis_event is not None and stop_analysis_event.is_set():
                     break
                 t_0 = time.monotonic()
-                img1_path = image_folder_path / sosi_gdf.iloc[i]["bildefilRGB"]
-                img2_path = image_folder_path / sosi_gdf.iloc[i + 1]["bildefilRGB"]
+                img1_path = image_folder_path / sosi_gdf.iloc[i][config.get("sosi_column_headers", "image_path_column_header")]
+                img2_path = image_folder_path / sosi_gdf.iloc[i + 1][config.get("sosi_column_headers", "image_path_column_header")]
 
-                image1: Image = Image.from_filename(sosi_gdf.iloc[i]["bildefilRGB"])
+                image1: Image = Image.from_filename(sosi_gdf.iloc[i][config.get("sosi_column_headers", "image_path_column_header")])
 
                 if (last_processed_image is not None
                         and image1.prefix == last_processed_image.prefix
@@ -177,7 +179,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
                 if run_line_artifact_analysis:
                     futures[ executor.submit(start_line_artefact_detection_analysis, arr1, img1_path, log)] = "line_artifact"
 
-                if run_color_diff_analysis and sosi_gdf.iloc[i]["stripenummer"] == sosi_gdf.iloc[i + 1]["stripenummer"]:
+                if run_color_diff_analysis and sosi_gdf.iloc[i][config.get("sosi_column_headers", "image_stripe_column_header")] == sosi_gdf.iloc[i + 1][config.get("sosi_column_headers", "image_stripe_column_header")]:
                      futures[ executor.submit(start_color_difference_analysis, sosi_gdf, i, arr1, arr2, image1.img_id, log)] = "color"
 
                 if water_gdf is not None and run_water_analysis:
