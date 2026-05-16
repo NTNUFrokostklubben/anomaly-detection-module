@@ -140,13 +140,14 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         config = Config()
         #Cut down the gdf to only the images in the current folder, and reset the index for easier access later.
         sosi_gdf = sosi_gdf[
-            sosi_gdf[config.get("sosi_column_headers", "image_path_column_header")].apply(lambda f: (image_folder_path / f).exists())
+            sosi_gdf["bildefilRGB"].apply(lambda f: (image_folder_path / f).exists())
         ].reset_index(drop=True)
         image_count = len(sosi_gdf)
 
         t0 = time.perf_counter()
         db = DbConnector()
         anomaly_sets = []
+        config = Config()
         run_artifact_analysis = config.get("pipeline", "run_block_artifact").lower() == "true"
         run_water_analysis = config.get("pipeline", "run_water_detection").lower() == "true"
         run_line_artifact_analysis = config.get("pipeline", "run_line_artifact").lower() == "true"

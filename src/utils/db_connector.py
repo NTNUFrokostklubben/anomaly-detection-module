@@ -330,7 +330,8 @@ class DbConnector:
                                     AND offset = ?
                                   """, (line, prefix, offset))
             self.commit()
-            return [np.frombuffer(r[2], dtype=r[0]).reshape(eval(r[1])) for r in rows]
+            arrays = [np.frombuffer(r[2], dtype=r[0]).reshape(eval(r[1])) for r in rows]
+            return [a.astype(np.float32) / 255.0 if a.dtype == np.uint8 else a for a in arrays]
         except sql.DatabaseError as e:
             logger.error("Error: application failed to read from database with error: %s", e,
                          extra={"operation": "SELECT", "table": "artifact_datapoints"}
