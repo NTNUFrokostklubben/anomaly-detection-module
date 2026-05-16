@@ -21,7 +21,7 @@ PEAK_MIN_PROMINENCE = 0.05  # peak must rise above its valley neighbours by this
 EXTENT_DECAY = 0.35
 
 # Minimum final width (px) after extent-fitting. Drops noise spikes.
-MIN_STRIPE_WIDTH = 5
+MIN_STRIPE_WIDTH = 25
 
 # A stripe must span ≥ this fraction of the image in the perpendicular direction.
 COVERAGE_MIN = 0.85
