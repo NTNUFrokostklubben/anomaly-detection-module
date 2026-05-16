@@ -106,7 +106,7 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
         image_id (str): The image id to add the analysis result to the database
     """
     try:
-        avg1, avg2, diff, confidence_level, _ = check_difference_two_images(
+        avg1, avg2, diff, confidence_level = check_difference_two_images(
             gdf,
             int(gdf.iloc[i]["bildenummer"]),
             int(gdf.iloc[i]["stripenummer"]),

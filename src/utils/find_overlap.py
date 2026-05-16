@@ -141,7 +141,8 @@ def get_bounds(px_coords: np.ndarray, width: int, height: int) -> tuple[int, int
     return min_x, max_x, min_y, max_y
 
 
-def get_overlap_pixel_images(gdf: gpd.GeoDataFrame, img1_num: int, strip1: int, img2_num: int, strip2: int) -> tuple[int, int, int, int]:
+def get_overlap_pixel_images(gdf: gpd.GeoDataFrame, img1_num: int, strip1: int, img2_num: int, strip2: int) \
+        -> tuple[ None, None] |  tuple[tuple[int, int, int, int],tuple[int, int, int, int]]:
     """ Find the pixel bounds of the overlapping region between two images defined in a GeoPackage
 
     Args:
