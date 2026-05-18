@@ -164,7 +164,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
         run_color_diff_analysis = config.get("pipeline", "run_color_diff").lower() == "true"
         log = True
         last_processed_image: Image = None
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=6) as executor:
             for i in range(start_index,image_count - 1):
                 # Stops analysis if the stop_analysis_event has been triggered. This is cross-thread
                 if stop_analysis_event is not None and stop_analysis_event.is_set():
@@ -209,7 +209,9 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
 
                 logger.info("All analyses complete", extra={"analysis": "pipeline", "img_id": image1.img_id})
 
+                logger.info("Before get_max_confidence_img", extra={"analysis": "pipeline", "img_id": image1.img_id})
                 image1.max_confidence = db.get_max_confidence_img(image1.img_id)
+                logger.info("After get_max_confidence_img", extra={"analysis": "pipeline", "img_id": image1.img_id})
                 print(f"Max confidence level for image {image1.img_id}: {image1.max_confidence}")
 
 

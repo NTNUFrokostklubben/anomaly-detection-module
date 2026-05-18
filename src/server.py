@@ -65,7 +65,7 @@ def serve(args):
     server_port = getattr(args, "port", None) or 50052
     db = DbConnector()
     db.init()
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=6))
     anomaly_pb2_grpc.add_AnomalyDetectorServiceServicer_to_server(AnomalyServiceServicer(), server)
     shutdown_pb2_grpc.add_ShutdownServiceServicer_to_server(ShutdownServicer(server), server)
 
