@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import progress_pb2 as progress__pb2
+import shutdown_pb2 as shutdown__pb2
 
 GRPC_GENERATED_VERSION = '1.80.0'
 GRPC_VERSION = grpc.__version__
@@ -18,14 +18,14 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in progress_pb2_grpc.py depends on'
+        + ' but the generated code in shutdown_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
     )
 
 
-class ProgressServiceStub(object):
+class ShutdownServiceStub(object):
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -34,43 +34,43 @@ class ProgressServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.GetProgress = channel.unary_unary(
-                '/skavl.ProgressService/GetProgress',
-                request_serializer=progress__pb2.ProgressRequest.SerializeToString,
-                response_deserializer=progress__pb2.ProgressReport.FromString,
+        self.Shutdown = channel.unary_unary(
+                '/skavl.shutdown.ShutdownService/Shutdown',
+                request_serializer=shutdown__pb2.ShutdownRequest.SerializeToString,
+                response_deserializer=shutdown__pb2.ShutdownResponse.FromString,
                 _registered_method=True)
 
 
-class ProgressServiceServicer(object):
+class ShutdownServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def GetProgress(self, request, context):
+    def Shutdown(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
 
-def add_ProgressServiceServicer_to_server(servicer, server):
+def add_ShutdownServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'GetProgress': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetProgress,
-                    request_deserializer=progress__pb2.ProgressRequest.FromString,
-                    response_serializer=progress__pb2.ProgressReport.SerializeToString,
+            'Shutdown': grpc.unary_unary_rpc_method_handler(
+                    servicer.Shutdown,
+                    request_deserializer=shutdown__pb2.ShutdownRequest.FromString,
+                    response_serializer=shutdown__pb2.ShutdownResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'skavl.ProgressService', rpc_method_handlers)
+            'skavl.shutdown.ShutdownService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('skavl.ProgressService', rpc_method_handlers)
+    server.add_registered_method_handlers('skavl.shutdown.ShutdownService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class ProgressService(object):
+class ShutdownService(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def GetProgress(request,
+    def Shutdown(request,
             target,
             options=(),
             channel_credentials=None,
@@ -83,9 +83,9 @@ class ProgressService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/skavl.ProgressService/GetProgress',
-            progress__pb2.ProgressRequest.SerializeToString,
-            progress__pb2.ProgressReport.FromString,
+            '/skavl.shutdown.ShutdownService/Shutdown',
+            shutdown__pb2.ShutdownRequest.SerializeToString,
+            shutdown__pb2.ShutdownResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -309,11 +309,11 @@ class DbConnector:
             return None
 
 
-    def get_artifact_data_line(self, prefix: str, line: int, shape: str) -> list[np.ndarray] | None:
+    def get_artifact_data_line(self, prefix: str, line: int, offset: int) -> list[np.ndarray] | None:
 
         """
         Get the computed artifact data for a line from the database.
-        :param shape: the shape of the data, ensures data of different resolution don't get compared.
+        :param offset: the block size used when computing artifact data — only returns data with matching offset.
         :param prefix: the prefix of the artifact data.
         :param line:   the line of the artifact data to get.
         :return: the computed artifact data for the line from the database or None
@@ -327,10 +327,11 @@ class DbConnector:
                                                    FROM images
                                                    WHERE line = ?
                                                      AND prefix = ?)
-                                      AND shape = ?
-                                  """, (line, prefix, shape, ))
+                                    AND offset = ?
+                                  """, (line, prefix, offset))
             self.commit()
-            return [np.frombuffer(r[2], dtype=r[0]).reshape(eval(r[1])) for r in rows]
+            arrays = [np.frombuffer(r[2], dtype=r[0]).reshape(eval(r[1])) for r in rows]
+            return [a.astype(np.float32) / 255.0 if a.dtype == np.uint8 else a for a in arrays]
         except sql.DatabaseError as e:
             logger.error("Error: application failed to read from database with error: %s", e,
                          extra={"operation": "SELECT", "table": "artifact_datapoints"}

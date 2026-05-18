@@ -68,7 +68,7 @@ def check_difference_two_images(gdf: gpd.GeoDataFrame,
                                 arr1: np.ndarray,
                                 img2_num: int,
                                 strip2:int,
-                                arr2: np.ndarray) -> tuple[float, float, float, float, float]:
+                                arr2: np.ndarray) -> tuple[float, float, float, float] | None:
     """Compare two images, timing both array creation and overlap calculation.
 
     Args:
@@ -89,13 +89,10 @@ def check_difference_two_images(gdf: gpd.GeoDataFrame,
     if bounds1 is None:
         return
 
-    # Wrap array retrieval + overlap calculation in the timer
-    start = time.perf_counter()
     result = overlap_color_difference(arr1, arr2, bounds1, bounds2)
-    end = time.perf_counter()
 
     avg1, avg2, diff = result
 
     confidence_level = set_confidence_level(diff)
 
-    return avg1, avg2, diff, end - start, confidence_level
+    return avg1, avg2, diff, confidence_level

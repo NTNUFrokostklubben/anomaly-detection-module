@@ -51,15 +51,14 @@ def detect_artifact_consistency(images: list[image.Image], increment: int) -> fl
     """
     config = Config()
     conn = db.DbConnector()
-    line_values = conn.get_artifact_data_line(images[0].prefix, images[0].line, str(images[0].img_arr.shape))
-    if line_values is None and len(images) < 2:
-        return None
+    line_values = conn.get_artifact_data_line(images[0].prefix, images[0].line, increment) or []
     for img in images:
         data = calculate_average_color_block(img.img_arr, increment)
         img.artifact_data = image.ArtifactData( data=data,dtype=data.dtype ,shape=data.shape,offset=increment )
-        conn.add_artifact_data(img.img_id,data=img.artifact_data.data, offset= increment )
+        conn.add_artifact_data(img.img_id, data=(data * 255).astype(np.uint8), offset=increment)
 
-    all_data = line_values + [img.artifact_data.data for img in images]
+    expected_shape = images[0].artifact_data.data.shape
+    all_data = [d for d in line_values if d.shape == expected_shape] + [img.artifact_data.data for img in images]
     if len(all_data) < int(config.get("artifact_block", "min_num_images_before_artifact_check")):
         return None
 
