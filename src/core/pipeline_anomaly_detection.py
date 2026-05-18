@@ -25,6 +25,7 @@ def start_line_artefact_detection_analysis(arr: np.ndarray, img_path: Path, log:
         img_path: used for output file naming
         log: whether to print or log the results of the analysis
     """
+    logger.info("Start", extra={"analysis": "line_artefact", "img_id": img_path.name})
     try:
         db = DbConnector()
         t_0 = time.monotonic()
@@ -41,6 +42,8 @@ def start_line_artefact_detection_analysis(arr: np.ndarray, img_path: Path, log:
             print(f"Total time for line artefact detection: {(t_1 - t_0):.2f}s")
     except Exception as e:
         logger.error("Line artefact detection failed, excpt_msg:%s",e,  extra={"analysis": "line_artefact", "img_id": img_path.name})
+    finally:
+        logger.info("End", extra={"analysis": "line_artefact", "img_id": img_path.name})
 
 
 def start_artifact_detection_analysis(image, increment, log: bool):
@@ -51,7 +54,7 @@ def start_artifact_detection_analysis(image, increment, log: bool):
     :param increment: the size of the block of pixels to compare.
     :param log: whether to log or not
     """
-
+    logger.info("Start", extra={"analysis": "artifact", "img_id": image.img_id})
     try:
         values = ad.detect_artifact_consistency([image], increment)
 
@@ -69,6 +72,8 @@ def start_artifact_detection_analysis(image, increment, log: bool):
             logger.info("Not enough data for artifact analysis, skipping.", extra={"analysis": "artifact", "img_id": image.img_id})
     except Exception as e:
         logger.error("Artefact detection failed, excpt_msg:%s",e,  extra={"analysis": "artifact", "img_id": image.img_id})
+    finally:
+        logger.info("End", extra={"analysis": "artifact", "img_id": image.img_id})
 
 def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, water_gdf: gpd.GeoDataFrame,  log: bool):
     """
@@ -79,6 +84,7 @@ def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, wat
     :param water_gdf:  the water polygon GeoDataFrame to create the polygon mask from.
     :param log:  bool for whether to log or not.
     """
+    logger.info("Start", extra={"analysis": "water_mask", "img_id": image.img_id})
     try:
         confidence_level = wd.start_analysis(water_gdf, sosig_df, image)
         db = DbConnector()
@@ -92,6 +98,8 @@ def start_water_detection_analysis(image: Image, sosig_df: gpd.GeoDataFrame, wat
 
     except Exception as e:
         logger.error("Water detection failed, excpt_msg:%s",e,  extra={"analysis": "water_mask", "img_id": image.img_id})
+    finally:
+        logger.info("End", extra={"analysis": "water_mask", "img_id": image.img_id})
 
 
 def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndarray, arr2: np.ndarray, image_id: str, log: bool):
@@ -105,6 +113,7 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
         arr2 (np.ndarray): The array of the second image to analyse
         image_id (str): The image id to add the analysis result to the database
     """
+    logger.info("Start", extra={"analysis": "color_difference", "img_id": image_id})
     try:
         config = Config()
         avg1, avg2, diff, confidence_level = check_difference_two_images(
@@ -122,6 +131,8 @@ def start_color_difference_analysis(gdf: gpd.GeoDataFrame, i: int, arr1: np.ndar
             logger.info("Color difference confidence level: %s", confidence_level, extra={"analysis": "color_difference", "img_id": image_id})
     except Exception as e:
         logger.error("Color difference analysis failed, excpt_msg:%s",e,  extra={"analysis": "color_difference", "img_id": image_id})
+    finally:
+        logger.info("End", extra={"analysis": "color_difference", "img_id": image_id})
 
 
 def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, *, water_gdf: gpd.GeoDataFrame = None,
@@ -164,6 +175,8 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
 
                 image1: Image = Image.from_filename(sosi_gdf.iloc[i][config.get("sosi_column_headers", "image_path_column_header")])
 
+                logger.info("Iteration start", extra={"analysis": "pipeline", "img_id": image1.img_id})
+
                 if (last_processed_image is not None
                         and image1.prefix == last_processed_image.prefix
                         and image1.line != last_processed_image.line):
@@ -171,6 +184,9 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
 
                 arr1, rm1, arr2, _ = load_two_image_arrays(img1_path, img2_path)
                 image1.img_arr, image1.metadata = arr1, rm1
+
+                logger.info("Images loaded", extra={"analysis": "pipeline", "img_id": image1.img_id})
+
                 futures = {}
                 if run_artifact_analysis:
                     futures[executor.submit(start_artifact_detection_analysis, image1,
@@ -191,6 +207,8 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
                     except Exception as e:
                         print(f"Analysis '{name}' failed: {e}")
 
+                logger.info("All analyses complete", extra={"analysis": "pipeline", "img_id": image1.img_id})
+
                 image1.max_confidence = db.get_max_confidence_img(image1.img_id)
                 print(f"Max confidence level for image {image1.img_id}: {image1.max_confidence}")
 
@@ -200,6 +218,7 @@ def start_anomaly_analysis(sosi_gdf: gpd.GeoDataFrame, image_folder_path: Path, 
                 image1.metadata = None
                 anomaly_sets.append(image1)
                 if on_image_complete:
+                    logger.info("Calling on_image_complete", extra={"analysis": "pipeline", "img_id": image1.img_id})
                     on_image_complete()
                 t_1 = time.monotonic()
                 print(f"Total time for analyses on image {image1.img_id}: {(t_1 - t_0):.2f}s")
